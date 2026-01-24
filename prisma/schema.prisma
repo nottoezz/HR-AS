@@ -84,6 +84,10 @@ model User {
   sessions      Session[]
 
   // add HR extensions
+  passwordHash String?
+  role         UserRole  @default(EMPLOYEE)
+  employeeId   String?   @unique
+  employee     Employee? @relation("UserToEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
 }
 
 model VerificationToken {
@@ -115,7 +119,13 @@ model Employee {
   directReports Employee[] @relation("EmployeeManager")
 
   // Departments this employee manages
-  // User link: user (inverse of User.employee)
+  departments        EmployeeDepartment[]
+  managedDepartments Department[]         @relation("DepartmentManager")
+
+  user   User?   @relation("UserToEmployee")
+  userId String?
+
+  @@index([managerId])
 }
 
 model Department {
@@ -126,10 +136,28 @@ model Department {
   // Core fields
   name   String           @unique
   status DepartmentStatus @default(ACTIVE)
+
+  // Manager of the department
+  managerId String?
+  manager   Employee?            @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  employees EmployeeDepartment[]
+
+  @@index([managerId])
 }
 
-/**
- * EmployeeDepartment
- * - Join: employeeId, departmentId (composite PK)
- * - Meta: createdAt
- */
+model EmployeeDepartment {
+  // Join table with composite primary key
+  employeeId   String
+  departmentId String
+
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  // Assignment metadata
+  createdAt DateTime @default(now())
+
+  // Composite PK (also indexes employeeId+departmentId together)
+  @@id([employeeId, departmentId])
+  @@index([employeeId])
+  @@index([departmentId])
+}
