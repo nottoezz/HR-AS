@@ -29,11 +29,21 @@ datasource db {
 
 // HR enums
 // ------------------------------------------------------
-/**
- * User Roles: HRADMIN, MANAGER, EMPLOYEE
- * Employee Status: ACTIVE, INACTIVE,
- * Department Status: ACTIVE, INACTIVE
- */
+enum UserRole {
+  HRADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum DepartmentStatus {
+  ACTIVE
+  INACTIVE
+}
 
 // Auth models
 // ------------------------------------------------------
