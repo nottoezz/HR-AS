@@ -97,13 +97,26 @@ model VerificationToken {
 // HR domain models
 // ------------------------------------------------------
 
-/**
- * Employee
- * - Core: id, firstName, lastName, telephone, email, status
- * - Manager: managerId, manager, directReports
- * - Departments: departments (join rows), managedDepartments
- * - User link: user (inverse of User.employee)
- */
+model Employee {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Core fields
+  firstName String
+  lastName  String
+  telephone String
+  email     String         @unique
+  status    EmployeeStatus @default(ACTIVE)
+
+  // Manager relationship - self-relation
+  managerId     String?
+  manager       Employee?  @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports Employee[] @relation("EmployeeManager")
+
+  // Departments this employee manages
+  // User link: user (inverse of User.employee)
+}
 
 /**
  * Department
