@@ -118,12 +118,15 @@ model Employee {
   // User link: user (inverse of User.employee)
 }
 
-/**
- * Department
- * - Core: id, name, status
- * - Manager: managerId, manager
- * - Employees: employees (join rows)
- */
+model Department {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Core fields
+  name   String           @unique
+  status DepartmentStatus @default(ACTIVE)
+}
 
 /**
  * EmployeeDepartment
