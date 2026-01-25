@@ -184,11 +184,82 @@ async function buildAccessWhere(ctx: any) {
   return {};
 }
 
+// query helpers
+// ------------------------------------------------------
+function applyFilters(baseWhere: any, filters: any) {
+  if (!filters) return baseWhere;
+
+  const and: any[] = [];
+
+  if (filters.firstName)
+    and.push({ firstName: { contains: filters.firstName } });
+
+  if (filters.lastName) and.push({ lastName: { contains: filters.lastName } });
+  if (filters.email) and.push({ email: { contains: filters.email } });
+  if (filters.status?.length) and.push({ status: { in: filters.status } });
+
+  if (filters.departmentIds?.length) {
+    and.push({
+      departments: { some: { departmentId: { in: filters.departmentIds } } },
+    });
+  }
+
+  if (filters.managerId) {
+    and.push({
+      OR: [
+        { managerId: filters.managerId },
+        {
+          departments: {
+            some: { department: { managerId: filters.managerId } },
+          },
+        },
+      ],
+    });
+  }
+
+  if (!and.length) return baseWhere;
+
+  // combine base rbac scope + all filters
+  return { AND: [baseWhere, ...and] };
+}
+
+// build prisma orderBy from the ui sort object
+function buildOrderBy(sort: any) {
+  if (sort) return [{ [sort.field]: sort.direction }];
+  return [{ lastName: "asc" }, { firstName: "asc" }]; // default stable ordering for table
+}
+
 // router
 // ------------------------------------------------------
-
 export const employeesRouter = createTRPCRouter({
-  // (TODO)
+  // list employees (scoped by rbac + filtered + sorted)
+  list: protectedProcedure
+    .input(listInputSchema)
+    .query(async ({ ctx, input }) => {
+      // rbac scope first
+      const baseWhere = await buildAccessWhere(ctx);
+
+      // then ui filters + sort
+      const where = applyFilters(baseWhere, input?.filters);
+      const orderBy = buildOrderBy(input?.sort);
+
+      // fetch list for ui table
+      return ctx.db.employee.findMany({
+        where,
+        orderBy: orderBy as any, // dynamic orderBy keys
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          telephone: true,
+          status: true,
+          createdAt: true,
+          manager: { select: { id: true, firstName: true, lastName: true } },
+          _count: { select: { departments: true, directReports: true } },
+        },
+      });
+    }),
 });
 /*
  * Procedures
