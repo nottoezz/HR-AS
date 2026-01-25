@@ -11,8 +11,14 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { TRPCError } from "@trpc/server";
-import { UserRole, type Session } from "../../../../generated/prisma/client";
-import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
+import type { Prisma, UserRole } from "../../../../generated/prisma";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+} from "@/server/api/trpc";
+import type { createTRPCContext } from "@/server/api/trpc";
+
+type Context = Awaited<ReturnType<typeof createTRPCContext>>;
 
 // zod schemas
 // ------------------------------------------------------
@@ -52,6 +58,10 @@ const listInputSchema = z
   })
   .optional();
 
+type ListInput = z.infer<typeof listInputSchema>;
+type ListFilters = NonNullable<ListInput>["filters"];
+type ListSort = NonNullable<ListInput>["sort"];
+
 // simple id input
 const idInputSchema = z.object({ id: z.string() });
 
@@ -85,22 +95,25 @@ const updateInputSchema = z.object({
 type SessionUser = { id: string; role: UserRole; employeeId: string | null };
 
 // pull the current user off the session and normalize types
-function getSessionUser(ctx: any): SessionUser {
+function getSessionUser(ctx: Context): SessionUser {
   // note: ctx.session is expected via protectedProcedure
-  const user = ctx.session.user;
+  const user = ctx.session?.user;
   if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+  const rawEmployeeId = (user as { employeeId?: unknown }).employeeId;
+  const employeeId = typeof rawEmployeeId === "string" ? rawEmployeeId : null;
 
   return {
     id: user.id,
     role: user.role as UserRole,
-    employeeId: user.employeeId,
+    employeeId,
   };
 }
 
 // role checks
-const isHRAdmin = (role: UserRole) => role === UserRole.HRADMIN;
-const isManager = (role: UserRole) => role === UserRole.MANAGER;
-const isEmployee = (role: UserRole) => role === UserRole.EMPLOYEE;
+const isHRAdmin = (role: UserRole) => role === "HRADMIN";
+const isManager = (role: UserRole) => role === "MANAGER";
+const isEmployee = (role: UserRole) => role === "EMPLOYEE";
 
 // require hradmin
 function assertHRAdmin(role: UserRole) {
@@ -116,7 +129,7 @@ function assertSelfEmployee(sessionUser: SessionUser, employeeId: string) {
 
 // require manager access to a given employee via managed departments
 async function assertManagerCanAccessEmployee(
-  ctx: any,
+  ctx: Context,
   targetEmployeeId: string,
 ) {
   // caller must be a manager employee record
@@ -136,8 +149,7 @@ async function assertManagerCanAccessEmployee(
 
   // ok if any target department is managed by the caller
   const ok = target.departments.some(
-    (ed: { department: { managerId: string } }) =>
-      ed.department.managerId === sessionUser.employeeId,
+    (ed) => ed.department.managerId === sessionUser.employeeId,
   );
 
   if (!ok) throw new TRPCError({ code: "FORBIDDEN" });
@@ -152,7 +164,9 @@ async function assertManagerCanAccessEmployee(
  * - manager: employees in managed departments + self
  * - employee: self only
  */
-async function buildAccessWhere(ctx: any) {
+async function buildAccessWhere(
+  ctx: Context,
+): Promise<Prisma.EmployeeWhereInput> {
   const sessionUser = getSessionUser(ctx);
 
   // employee can only see self
@@ -169,7 +183,7 @@ async function buildAccessWhere(ctx: any) {
       select: { id: true },
     });
 
-    const deptIds = managed.map((d: { id: string }) => d.id);
+    const deptIds = managed.map((d) => d.id);
 
     return {
       OR: [
@@ -187,10 +201,13 @@ async function buildAccessWhere(ctx: any) {
 
 // query helpers
 // ------------------------------------------------------
-function applyFilters(baseWhere: any, filters: any) {
+function applyFilters(
+  baseWhere: Prisma.EmployeeWhereInput,
+  filters?: ListFilters,
+): Prisma.EmployeeWhereInput {
   if (!filters) return baseWhere;
 
-  const and: any[] = [];
+  const and: Prisma.EmployeeWhereInput[] = [];
 
   if (filters.firstName)
     and.push({ firstName: { contains: filters.firstName } });
@@ -225,8 +242,12 @@ function applyFilters(baseWhere: any, filters: any) {
 }
 
 // build prisma orderBy from the ui sort object
-function buildOrderBy(sort: any) {
-  if (sort) return [{ [sort.field]: sort.direction }];
+function buildOrderBy(
+  sort?: ListSort,
+): Prisma.EmployeeOrderByWithRelationInput[] {
+  if (sort) {
+    return [{ [sort.field]: sort.direction } as Prisma.EmployeeOrderByWithRelationInput];
+  }
   return [{ lastName: "asc" }, { firstName: "asc" }]; // default stable ordering for table
 }
 
@@ -247,7 +268,7 @@ export const employeesRouter = createTRPCRouter({
       // fetch list for ui table
       return ctx.db.employee.findMany({
         where,
-        orderBy: orderBy as any, // dynamic orderBy keys
+        orderBy,
         select: {
           id: true,
           firstName: true,
@@ -261,6 +282,7 @@ export const employeesRouter = createTRPCRouter({
         },
       });
     }),
+
   // getById return one employee include relations
   getById: protectedProcedure
     .input(idInputSchema)
@@ -351,7 +373,10 @@ export const employeesRouter = createTRPCRouter({
       }
 
       // default pass
-      const defaultPassword = process.env.DEFAULT_PASSWORD as string;
+      const defaultPassword = process.env.DEFAULT_PASSWORD;
+      if (!defaultPassword) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      }
       const passwordHash = await bcrypt.hash(defaultPassword, 10);
 
       // create user + employee + links in a transaction
@@ -395,7 +420,6 @@ export const employeesRouter = createTRPCRouter({
               employeeId: employee.id,
               departmentId,
             })),
-            skipDuplicates: true as never,
           });
         }
 
@@ -405,6 +429,7 @@ export const employeesRouter = createTRPCRouter({
       // don't return default password
       return result;
     }),
+
   // update employee (admin full, non-admin self limited)
   update: protectedProcedure
     .input(updateInputSchema)
@@ -497,7 +522,6 @@ export const employeesRouter = createTRPCRouter({
                 employeeId: input.id,
                 departmentId,
               })),
-              skipDuplicates: true as never,
             });
           }
         }
