@@ -8,6 +8,8 @@
  * - add prisma queries after structure is clear
  */
 
+import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
+
 /*
  * Setup
  * - import zod trpc helpers prisma client
@@ -32,6 +34,9 @@
  * - buildAccessWhere sessionUser
  */
 
+export const employeesRouter = createTRPCRouter({
+  // (TODO)
+});
 /*
  * Procedures
  *
