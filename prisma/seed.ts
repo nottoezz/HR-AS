@@ -81,3 +81,10 @@ const main = async () => {
  * not required for spec
  * used for testing and performance
  */
+
+// Run the seed
+// ------------------------------------------------------
+main().catch((error) => {
+  console.error("Fatal error during seed:", error);
+  process.exit(1);
+});
