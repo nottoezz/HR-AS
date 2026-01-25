@@ -65,6 +65,34 @@ const updateInputSchema = z.object({
 
 // rbac helpers
 // ------------------------------------------------------
+// minimal session shape used by rbac rules
+type SessionUser = { id: string; role: UserRole; employeeId: string | null };
+
+// pull the current user off the session and normalize types
+function getSessionUser(ctx: Context): SessionUser {
+  // note: ctx.session is expected via protectedProcedure
+  const user = ctx.session?.user;
+  if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+  const rawEmployeeId = (user as { employeeId?: unknown }).employeeId;
+  const employeeId = typeof rawEmployeeId === "string" ? rawEmployeeId : null;
+
+  return {
+    id: user.id,
+    role: user.role as UserRole,
+    employeeId,
+  };
+}
+
+// role checks
+const isHRAdmin = (role: UserRole) => role === "HRADMIN";
+const isManager = (role: UserRole) => role === "MANAGER";
+const isEmployee = (role: UserRole) => role === "EMPLOYEE";
+
+// require hradmin
+function assertHRAdmin(role: UserRole) {
+  if (!isHRAdmin(role)) throw new TRPCError({ code: "FORBIDDEN" });
+}
 
 // access scope builder
 // ------------------------------------------------------
