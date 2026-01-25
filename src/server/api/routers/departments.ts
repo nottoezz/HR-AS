@@ -167,4 +167,205 @@ function buildOrderBy(
 
 // router
 // ------------------------------------------------------
-export const departmentsRouter = createTRPCRouter({});
+export const departmentsRouter = createTRPCRouter({
+  // list departments (scoped by rbac + filtered + sorted)
+  list: protectedProcedure
+    .input(listInputSchema)
+    .query(async ({ ctx, input }) => {
+      const baseWhere = await buildAccessWhere(ctx);
+      const where = applyFilters(baseWhere, input?.filters);
+      const orderBy = buildOrderBy(input?.sort);
+
+      return ctx.db.department.findMany({
+        where,
+        orderBy,
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          createdAt: true,
+          manager: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
+          _count: { select: { employees: true } },
+        },
+      });
+    }),
+
+  // getById (scoped by rbac)
+  getById: protectedProcedure
+    .input(idInputSchema)
+    .query(async ({ ctx, input }) => {
+      const baseWhere = await buildAccessWhere(ctx);
+
+      // enforce access by requiring the department to also match the scope
+      const department = await ctx.db.department.findFirst({
+        where: { AND: [baseWhere, { id: input.id }] },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          createdAt: true,
+          manager: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
+          employees: {
+            select: {
+              employee: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                  telephone: true,
+                  status: true,
+                },
+              },
+            },
+            orderBy: { employee: { lastName: "asc" } },
+          },
+          _count: { select: { employees: true } },
+        },
+      });
+
+      if (!department) throw new TRPCError({ code: "NOT_FOUND" });
+      return department;
+    }),
+
+  // create department (hradmin only)
+  create: protectedProcedure
+    .input(createInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const sessionUser = getSessionUser(ctx);
+      assertHRAdmin(sessionUser.role);
+
+      const name = input.name.trim();
+
+      // unique name
+      const existing = await ctx.db.department.findUnique({ where: { name } });
+      if (existing) throw new TRPCError({ code: "CONFLICT" });
+
+      // validate manager if provided
+      if (input.managerId) {
+        const manager = await ctx.db.employee.findUnique({
+          where: { id: input.managerId },
+          select: {
+            id: true,
+            userId: true,
+            user: { select: { id: true, role: true } },
+          },
+        });
+        if (!manager) throw new TRPCError({ code: "BAD_REQUEST" });
+
+        // if manager has a user, ensure role is MANAGER
+        if (manager.user && manager.user.role !== "MANAGER") {
+          await ctx.db.user.update({
+            where: { id: manager.user.id },
+            data: { role: "MANAGER" },
+          });
+        }
+      }
+
+      return ctx.db.department.create({
+        data: {
+          name,
+          status: input.status,
+          managerId: input.managerId ?? null,
+        },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          createdAt: true,
+          manager: { select: { id: true, firstName: true, lastName: true } },
+        },
+      });
+    }),
+
+  // update department (hradmin only)
+  update: protectedProcedure
+    .input(updateInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const sessionUser = getSessionUser(ctx);
+      assertHRAdmin(sessionUser.role);
+
+      const existing = await ctx.db.department.findUnique({
+        where: { id: input.id },
+        select: { id: true, name: true, managerId: true },
+      });
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const nextName = input.name?.trim();
+
+      // unique name check if changed
+      if (nextName && nextName !== existing.name) {
+        const conflict = await ctx.db.department.findUnique({
+          where: { name: nextName },
+        });
+        if (conflict) throw new TRPCError({ code: "CONFLICT" });
+      }
+
+      // validate manager if provided (note: null allowed to clear)
+      if (input.managerId) {
+        const manager = await ctx.db.employee.findUnique({
+          where: { id: input.managerId },
+          select: { id: true, user: { select: { id: true, role: true } } },
+        });
+        if (!manager) throw new TRPCError({ code: "BAD_REQUEST" });
+
+        if (manager.user && manager.user.role !== "MANAGER") {
+          await ctx.db.user.update({
+            where: { id: manager.user.id },
+            data: { role: "MANAGER" },
+          });
+        }
+      }
+
+      return ctx.db.department.update({
+        where: { id: input.id },
+        data: {
+          name: nextName,
+          status: input.status,
+          managerId: input.managerId,
+        },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          createdAt: true,
+          manager: { select: { id: true, firstName: true, lastName: true } },
+          _count: { select: { employees: true } },
+        },
+      });
+    }),
+
+  // delete department (hradmin only, must be empty)
+  delete: protectedProcedure
+    .input(idInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const sessionUser = getSessionUser(ctx);
+      assertHRAdmin(sessionUser.role);
+
+      const dept = await ctx.db.department.findUnique({
+        where: { id: input.id },
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { employees: true } },
+        },
+      });
+      if (!dept) throw new TRPCError({ code: "NOT_FOUND" });
+
+      if (dept._count.employees > 0) {
+        throw new TRPCError({ code: "BAD_REQUEST" });
+      }
+
+      await ctx.db.department.delete({ where: { id: input.id } });
+
+      return {
+        success: true,
+        message: `Department "${dept.name}" has been deleted`,
+        deletedDepartment: { id: dept.id, name: dept.name },
+      };
+    }),
+});
