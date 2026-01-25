@@ -9,6 +9,8 @@
  */
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { UserRole, type Session } from "../../../../generated/prisma/client";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 
 // zod schemas
@@ -75,15 +77,115 @@ const updateInputSchema = z.object({
   departmentIds: z.array(z.string()).optional(),
 });
 
-/*
- * RBAC helpers
- * - getSessionUser id role employeeId
- * - role checks isHRAdmin isManager isEmployee
- * - assertHRAdmin
- * - assertSelf
- * - assertManagerCanAccessEmployee
- * - buildAccessWhere sessionUser
+// rbac helpers
+// ------------------------------------------------------
+
+// minimal session shape used by rbac rules
+type SessionUser = { id: string; role: UserRole; employeeId: string | null };
+
+// pull the current user off the session and normalize types
+function getSessionUser(ctx: any): SessionUser {
+  // note: ctx.session is expected via protectedProcedure
+  const user = ctx.session.user;
+  if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+  return {
+    id: user.id,
+    role: user.role as UserRole,
+    employeeId: user.employeeId,
+  };
+}
+
+// role checks
+const isHRAdmin = (role: UserRole) => role === UserRole.HRADMIN;
+const isManager = (role: UserRole) => role === UserRole.MANAGER;
+const isEmployee = (role: UserRole) => role === UserRole.EMPLOYEE;
+
+// require hradmin
+function assertHRAdmin(role: UserRole) {
+  if (!isHRAdmin(role)) throw new TRPCError({ code: "FORBIDDEN" });
+}
+
+// require the caller to be the same employee
+function assertSelfEmployee(sessionUser: SessionUser, employeeId: string) {
+  if (!sessionUser.employeeId || sessionUser.employeeId !== employeeId) {
+    throw new TRPCError({ code: "FORBIDDEN" });
+  }
+}
+
+// require manager access to a given employee via managed departments
+async function assertManagerCanAccessEmployee(
+  ctx: any,
+  targetEmployeeId: string,
+) {
+  // caller must be a manager employee record
+  const sessionUser = getSessionUser(ctx);
+  if (!sessionUser.employeeId) throw new TRPCError({ code: "FORBIDDEN" });
+
+  // fetch target and its departments with managerId
+  const target = await ctx.db.employee.findUnique({
+    where: { id: targetEmployeeId },
+    select: {
+      id: true,
+      departments: { select: { department: { select: { managerId: true } } } },
+    },
+  });
+
+  if (!target) throw new TRPCError({ code: "NOT_FOUND" });
+
+  // ok if any target department is managed by the caller
+  const ok = target.departments.some(
+    (ed: { department: { managerId: string } }) =>
+      ed.department.managerId === sessionUser.employeeId,
+  );
+
+  if (!ok) throw new TRPCError({ code: "FORBIDDEN" });
+}
+
+// access scope builder
+// ------------------------------------------------------
+
+/**
+ * build base access scope
+ * - hradmin: all employees
+ * - manager: employees in managed departments + self
+ * - employee: self only
  */
+async function buildAccessWhere(ctx: any) {
+  const sessionUser = getSessionUser(ctx);
+
+  // employee can only see self
+  if (isEmployee(sessionUser.role)) {
+    if (!sessionUser.employeeId) return { id: "__none__" };
+    return { id: sessionUser.employeeId };
+  }
+
+  // manager can see self + anyone in departments they manage
+  if (isManager(sessionUser.role) && sessionUser.employeeId) {
+    // get departments managed by the manager (employeeId)
+    const managed = await ctx.db.department.findMany({
+      where: { managerId: sessionUser.employeeId },
+      select: { id: true },
+    });
+
+    const deptIds = managed.map((d: { id: string }) => d.id);
+
+    return {
+      OR: [
+        // always allow self
+        { id: sessionUser.employeeId },
+        // allow employees linked to managed departments
+        { departments: { some: { departmentId: { in: deptIds } } } },
+      ],
+    };
+  }
+
+  // hradmin (or any other future elevated role) sees all
+  return {};
+}
+
+// router
+// ------------------------------------------------------
 
 export const employeesRouter = createTRPCRouter({
   // (TODO)
