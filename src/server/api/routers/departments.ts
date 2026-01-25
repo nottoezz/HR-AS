@@ -96,6 +96,39 @@ function assertHRAdmin(role: UserRole) {
 
 // access scope builder
 // ------------------------------------------------------
+/**
+ * build base access scope
+ * - hradmin: all employees
+ * - manager: departments where managerId === sessionUser.employeeId
+ * - employee: departments linked to their employeeDepartment memberships
+ */
+async function buildAccessWhere(
+  ctx: Context,
+): Promise<Prisma.DepartmentWhereInput> {
+  const sessionUser = getSessionUser(ctx);
+
+  // hradmin sees all
+  if (isHRAdmin(sessionUser.role)) return {};
+
+  // manager: only the depts they manage
+  if (isManager(sessionUser.role)) {
+    if (!sessionUser.employeeId) return { id: "__none__" };
+    return { managerId: sessionUser.employeeId };
+  }
+
+  // employee: only depts they belong to
+  if (isEmployee(sessionUser.role)) {
+    if (!sessionUser.employeeId) return { id: "__none__" };
+    return {
+      employees: {
+        some: { employeeId: sessionUser.employeeId },
+      },
+    };
+  }
+
+  // default deny
+  return { id: "__none__" };
+}
 
 // query helpers
 // ------------------------------------------------------
