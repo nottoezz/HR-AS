@@ -18,6 +18,8 @@ declare module "next-auth" {
   }
 }
 
+type TokenWithRole = { role?: string } & Record<string, unknown>;
+
 export const authConfig = {
   adapter: PrismaAdapter(db),
 
@@ -49,6 +51,7 @@ export const authConfig = {
             passwordHash: true,
           },
         });
+
         if (!user?.passwordHash) return null;
 
         const isValid = await compare(password, user.passwordHash);
@@ -58,7 +61,7 @@ export const authConfig = {
           id: user.id,
           email: user.email ?? undefined,
           name: user.name ?? undefined,
-          role: user.role,
+          role: String(user.role),
         };
       },
     }),
@@ -66,18 +69,22 @@ export const authConfig = {
 
   callbacks: {
     async jwt({ token, user }) {
-      // runs on sign-in
       if (user) {
-        token.sub = user.id;
-        (token as any).role = (user as any).role;
+        const t = token as TokenWithRole;
+        const u = user as { id: string; role?: string };
+
+        token.sub = u.id;
+        t.role = u.role;
       }
       return token;
     },
+
     async session({ session, token }) {
-      // expose id + role on session.user
-      if (session.user) {
-        (session.user as any).id = token.sub as string;
-        (session.user as any).role = (token as any).role as string;
+      const t = token as TokenWithRole;
+
+      if (session.user && token.sub) {
+        session.user.id = token.sub;
+        session.user.role = (t.role ?? "EMPLOYEE");
       }
       return session;
     },
