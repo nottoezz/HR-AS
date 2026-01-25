@@ -21,7 +21,9 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev:fixtures": "tsx scripts/dev-fixtures.ts",
+    "smoke:trpc": "tsx scripts/smoke-trpc.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.2",
