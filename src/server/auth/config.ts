@@ -27,6 +27,10 @@ export const authConfig = {
   trustHost: true,
 
   session: { strategy: "jwt" },
+  pages: {
+    signIn: "/login",
+    error: "/login",
+  },
 
   providers: [
     Credentials({
@@ -84,7 +88,7 @@ export const authConfig = {
 
       if (session.user && token.sub) {
         session.user.id = token.sub;
-        session.user.role = (t.role ?? "EMPLOYEE");
+        session.user.role = t.role ?? "EMPLOYEE";
       }
       return session;
     },
