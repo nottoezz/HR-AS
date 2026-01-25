@@ -507,4 +507,21 @@ export const employeesRouter = createTRPCRouter({
 
       return updated;
     }),
+
+  // deactivate employee (hradmin only)
+  deactivate: protectedProcedure
+    .input(idInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const sessionUser = getSessionUser(ctx);
+      assertHRAdmin(sessionUser.role);
+
+      // update employee status to inactive
+      const employee = await ctx.db.employee.update({
+        where: { id: input.id },
+        data: { status: "INACTIVE" },
+        select: { id: true, email: true, status: true },
+      });
+
+      return employee;
+    }),
 });
