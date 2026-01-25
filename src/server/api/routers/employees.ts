@@ -260,6 +260,68 @@ export const employeesRouter = createTRPCRouter({
         },
       });
     }),
+  // getById return one employee include relations
+  getById: protectedProcedure
+    .input(idInputSchema)
+    .query(async ({ ctx, input }) => {
+      // current authenticated user
+      const sessionUser = getSessionUser(ctx);
+
+      if (isEmployee(sessionUser.role)) {
+        // employees can only access self
+        assertSelfEmployee(sessionUser, input.id);
+      }
+
+      if (
+        isManager(sessionUser.role) &&
+        sessionUser.employeeId &&
+        input.id !== sessionUser.employeeId
+      ) {
+        // manager scope check via departments
+        await assertManagerCanAccessEmployee(ctx, input.id);
+      }
+
+      const employee = await ctx.db.employee.findUnique({
+        // target employee
+        where: { id: input.id },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          telephone: true,
+          status: true,
+          createdAt: true,
+          manager: {
+            // reporting manager
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
+          // linked auth user
+          user: { select: { id: true, email: true, role: true } },
+          departments: {
+            select: {
+              // assigned departments
+              department: { select: { id: true, name: true, status: true } },
+            },
+          },
+          directReports: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              status: true,
+            },
+            // stable ordering for ui
+            orderBy: { lastName: "asc" },
+          },
+        },
+      });
+
+      // invalid id
+      if (!employee) throw new TRPCError({ code: "NOT_FOUND" });
+      return employee;
+    }),
 });
 /*
  * Procedures
