@@ -9,6 +9,7 @@
  */
 
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { TRPCError } from "@trpc/server";
 import { UserRole, type Session } from "../../../../generated/prisma/client";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
@@ -321,6 +322,88 @@ export const employeesRouter = createTRPCRouter({
       // invalid id
       if (!employee) throw new TRPCError({ code: "NOT_FOUND" });
       return employee;
+    }),
+
+  // current employee (hradmin only)
+  create: protectedProcedure
+    .input(createInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const sessionUser = getSessionUser(ctx);
+      assertHRAdmin(sessionUser.role);
+
+      // normalize email
+      const email = input.email.toLowerCase();
+
+      // ensure email is unique across employee and user
+      const [employeeEmail, userEmail] = await Promise.all([
+        ctx.db.employee.findUnique({ where: { email } }),
+        ctx.db.user.findUnique({ where: { email } }),
+      ]);
+      if (employeeEmail || userEmail) throw new TRPCError({ code: "CONFLICT" });
+
+      // validate departments id
+      if (input.departmentIds?.length) {
+        const count = await ctx.db.department.count({
+          where: { id: { in: input.departmentIds } },
+        });
+        if (count !== input.departmentIds.length)
+          throw new TRPCError({ code: "BAD_REQUEST" });
+      }
+
+      // default pass
+      const defaultPassword = process.env.DEFAULT_PASSWORD as string;
+      const passwordHash = await bcrypt.hash(defaultPassword, 10);
+
+      // create user + employee + links in a transaction
+      const result = await ctx.db.$transaction(async (tx) => {
+        // create login user for the employee
+        const user = await tx.user.create({
+          data: { email, passwordHash, role: "EMPLOYEE" },
+          select: { id: true, email: true, role: true },
+        });
+
+        // create employee record
+        const employee = await tx.employee.create({
+          data: {
+            firstName: input.firstName,
+            lastName: input.lastName,
+            telephone: input.telephone,
+            email,
+            status: input.status,
+            managerId: input.managerId ?? null,
+            userId: user.id,
+          },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            status: true,
+          },
+        });
+
+        // link user to employee
+        await tx.user.update({
+          where: { id: user.id },
+          data: { employeeId: employee.id },
+        });
+
+        // attach department memberships (optional)
+        if (input.departmentIds?.length) {
+          await tx.employeeDepartment.createMany({
+            data: input.departmentIds.map((departmentId) => ({
+              employeeId: employee.id,
+              departmentId,
+            })),
+            skipDuplicates: true as never,
+          });
+        }
+
+        return { user, employee };
+      });
+
+      // don't return default password
+      return result;
     }),
 });
 /*
