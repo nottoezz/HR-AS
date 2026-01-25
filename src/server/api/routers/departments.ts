@@ -132,6 +132,38 @@ async function buildAccessWhere(
 
 // query helpers
 // ------------------------------------------------------
+// apply filters to the base where clause
+function applyFilters(
+  baseWhere: Prisma.DepartmentWhereInput,
+  filters?: ListFilters,
+): Prisma.DepartmentWhereInput {
+  if (!filters) return baseWhere;
+
+  const and: Prisma.DepartmentWhereInput[] = [];
+
+  if (filters.name) and.push({ name: { contains: filters.name } });
+  if (filters.status?.length)
+    and.push({ status: { in: filters.status as DepartmentStatus[] } });
+  if (filters.managerId) and.push({ managerId: filters.managerId });
+
+  if (!and.length) return baseWhere;
+
+  return { AND: [baseWhere, ...and] };
+}
+
+// build prisma orderBy from the ui sort object
+function buildOrderBy(
+  sort?: ListSort,
+): Prisma.DepartmentOrderByWithRelationInput[] {
+  if (sort) {
+    return [
+      {
+        [sort.field]: sort.direction,
+      } as Prisma.DepartmentOrderByWithRelationInput,
+    ];
+  }
+  return [{ name: "asc" }];
+}
 
 // router
 // ------------------------------------------------------
