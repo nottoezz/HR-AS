@@ -405,36 +405,106 @@ export const employeesRouter = createTRPCRouter({
       // don't return default password
       return result;
     }),
+  // update employee (admin full, non-admin self limited)
+  update: protectedProcedure
+    .input(updateInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const sessionUser = getSessionUser(ctx);
+
+      // find existing employee and user
+      const existing = await ctx.db.employee.findUnique({
+        where: { id: input.id },
+        select: { id: true, email: true, userId: true },
+      });
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const isAdmin = isHRAdmin(sessionUser.role);
+
+      if (!isAdmin) {
+        assertSelfEmployee(sessionUser, input.id);
+
+        // manager can't update status, departments, or manager
+        if (input.status !== undefined)
+          throw new TRPCError({ code: "FORBIDDEN" });
+        if (input.departmentIds !== undefined)
+          throw new TRPCError({ code: "FORBIDDEN" });
+        if (input.managerId !== undefined)
+          throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      // normalize email
+      const nextEmail = input.email?.toLowerCase();
+
+      if (nextEmail && nextEmail !== existing.email) {
+        // ensure email is unique across employee and user
+        const [employeeEmail, userEmail] = await Promise.all([
+          ctx.db.employee.findUnique({ where: { email: nextEmail } }),
+          ctx.db.user.findUnique({ where: { email: nextEmail } }),
+        ]);
+        if (employeeEmail || userEmail)
+          throw new TRPCError({ code: "CONFLICT" });
+      }
+
+      // validate departments id
+      if (isAdmin && input.departmentIds?.length) {
+        const count = await ctx.db.department.count({
+          where: { id: { in: input.departmentIds } },
+        });
+        if (count !== input.departmentIds.length) {
+          throw new TRPCError({ code: "BAD_REQUEST" });
+        }
+      }
+
+      // update employee in a transaction
+      const updated = await ctx.db.$transaction(async (tx) => {
+        // update employee record
+        const employee = await tx.employee.update({
+          where: { id: input.id },
+          data: {
+            firstName: input.firstName,
+            lastName: input.lastName,
+            telephone: input.telephone,
+            email: nextEmail,
+            status: isAdmin ? input.status : undefined,
+            managerId: isAdmin ? input.managerId : undefined,
+          },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            status: true,
+          },
+        });
+
+        // update user email if email changed
+        if (nextEmail && existing.userId) {
+          await tx.user.update({
+            where: { id: existing.userId },
+            data: { email: nextEmail },
+          });
+        }
+
+        // update department memberships (hradmin only)
+        if (isAdmin && input.departmentIds !== undefined) {
+          await tx.employeeDepartment.deleteMany({
+            where: { employeeId: input.id },
+          });
+
+          if (input.departmentIds.length) {
+            await tx.employeeDepartment.createMany({
+              data: input.departmentIds.map((departmentId) => ({
+                employeeId: input.id,
+                departmentId,
+              })),
+              skipDuplicates: true as never,
+            });
+          }
+        }
+
+        return employee;
+      });
+
+      return updated;
+    }),
 });
-/*
- * Procedures
- *
- * list
- * - apply access scope first
- * - apply filters sort paging
- * - return include shape used by ui
- *
- * getById
- * - enforce access rules
- * - return one employee include relations
- *
- * create hradmin only
- * - validate email unique in employee and user
- * - create user with default password
- * - create employee link userId
- * - link user employeeId
- * - attach departments if provided
- *
- * update
- * - hradmin can update all fields
- * - manager employee can update self basic fields only
- * - email change updates linked user email
- * - hradmin can update department assignments
- *
- * deactivate hradmin only
- * - set status inactive
- *
- * getStats optional
- * - same access rules as getById
- * - return derived manager and counts
- */
