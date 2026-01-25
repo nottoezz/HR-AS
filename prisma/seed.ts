@@ -14,6 +14,7 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { hash } from "bcryptjs";
 
 // Prisma Client
+// ------------------------------------------------------
 const createPrismaClient = () => {
   const databaseURL = process.env.DATABASE_URL;
 
@@ -30,13 +31,8 @@ const createPrismaClient = () => {
   });
 };
 
-/*
-Main seed function
-Create prisma client
-Seed user
-Ensure relationships are correct
-Disconnect
-*/
+// Main seed function
+// ------------------------------------------------------
 
 /*
 set dedicated HRADMIN accn
