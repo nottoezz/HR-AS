@@ -8,21 +8,72 @@
  * - add prisma queries after structure is clear
  */
 
+import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 
-/*
- * Setup
- * - import zod trpc helpers prisma client
- */
+// zod schemas
+// ------------------------------------------------------
 
-/*
- * Schemas
- * - status enum
- * - list input filters sort paging
- * - create input
- * - update input
- * - id input
- */
+// shared enums
+const employeeStatusSchema = z.enum(["ACTIVE", "INACTIVE"]);
+const sortDirectionSchema = z.enum(["asc", "desc"]);
+
+// list + filter input for employee queries
+const listInputSchema = z
+  .object({
+    // optional filter values
+    filters: z
+      .object({
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        email: z.string().optional(),
+        status: z.array(employeeStatusSchema).optional(),
+        departmentIds: z.array(z.string()).optional(),
+        managerId: z.string().optional(),
+      })
+      .optional(),
+
+    // optional sorting config
+    sort: z
+      .object({
+        field: z.enum([
+          "firstName",
+          "lastName",
+          "email",
+          "status",
+          "createdAt",
+        ]),
+        direction: sortDirectionSchema,
+      })
+      .optional(),
+  })
+  .optional();
+
+// simple id input
+const idInputSchema = z.object({ id: z.string() });
+
+// input for creating a new employee
+const createInputSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  telephone: z.string().min(1),
+  email: z.string().email(),
+  status: employeeStatusSchema.default("ACTIVE"),
+  managerId: z.string().optional(),
+  departmentIds: z.array(z.string()).optional(),
+});
+
+// input for updating an existing employee
+const updateInputSchema = z.object({
+  id: z.string(),
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  telephone: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+  status: employeeStatusSchema.optional(),
+  managerId: z.string().nullable().optional(),
+  departmentIds: z.array(z.string()).optional(),
+});
 
 /*
  * RBAC helpers
