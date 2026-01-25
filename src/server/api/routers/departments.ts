@@ -368,4 +368,20 @@ export const departmentsRouter = createTRPCRouter({
         deletedDepartment: { id: dept.id, name: dept.name },
       };
     }),
+
+  // deactivate department (hradmin only)
+  deactivate: protectedProcedure
+    .input(idInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const sessionUser = getSessionUser(ctx);
+      assertHRAdmin(sessionUser.role);
+
+      const dept = await ctx.db.department.update({
+        where: { id: input.id },
+        data: { status: "INACTIVE" },
+        select: { id: true, name: true, status: true },
+      });
+
+      return dept;
+    }),
 });
