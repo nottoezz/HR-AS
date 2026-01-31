@@ -37,12 +37,14 @@ const listInputSchema = z
       .optional(),
     sort: z
       .object({
-        field: z.enum(["name", "status", "createdAt"]),
+        field: z.enum(["name", "status", "createdAt", "manager"]),
         direction: sortDirectionSchema,
       })
       .optional(),
+    page: z.number().int().min(1).default(1),
+    pageSize: z.number().int().min(1).max(200).default(10),
   })
-  .optional();
+  .default({});
 
 type ListInput = z.infer<typeof listInputSchema>;
 type ListFilters = NonNullable<ListInput>["filters"];
@@ -155,14 +157,21 @@ function applyFilters(
 function buildOrderBy(
   sort?: ListSort,
 ): Prisma.DepartmentOrderByWithRelationInput[] {
-  if (sort) {
+  if (!sort) return [{ name: "asc" }];
+
+  if (sort.field === "manager") {
     return [
-      {
-        [sort.field]: sort.direction,
-      } as Prisma.DepartmentOrderByWithRelationInput,
+      { manager: { lastName: sort.direction } },
+      { manager: { firstName: sort.direction } },
+      { name: "asc" },
     ];
   }
-  return [{ name: "asc" }];
+
+  return [
+    {
+      [sort.field]: sort.direction,
+    } as Prisma.DepartmentOrderByWithRelationInput,
+  ];
 }
 
 // router
@@ -173,23 +182,30 @@ export const departmentsRouter = createTRPCRouter({
     .input(listInputSchema)
     .query(async ({ ctx, input }) => {
       const baseWhere = await buildAccessWhere(ctx);
-      const where = applyFilters(baseWhere, input?.filters);
-      const orderBy = buildOrderBy(input?.sort);
+      const where = applyFilters(baseWhere, input.filters);
+      const orderBy = buildOrderBy(input.sort);
 
-      return ctx.db.department.findMany({
-        where,
-        orderBy,
-        select: {
-          id: true,
-          name: true,
-          status: true,
-          createdAt: true,
-          manager: {
-            select: { id: true, firstName: true, lastName: true, email: true },
+      const skip = (input.page - 1) * input.pageSize;
+      const take = input.pageSize;
+
+      const [items, total] = await ctx.db.$transaction([
+        ctx.db.department.findMany({
+          where,
+          orderBy,
+          skip,
+          take,
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            createdAt: true,
+            manager: { select: { id: true, firstName: true, lastName: true } },
           },
-          _count: { select: { employees: true } },
-        },
-      });
+        }),
+        ctx.db.department.count({ where }),
+      ]);
+
+      return { items, total };
     }),
 
   // getById (scoped by rbac)
