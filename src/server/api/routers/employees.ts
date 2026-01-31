@@ -12,10 +12,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { TRPCError } from "@trpc/server";
 import type { Prisma, UserRole } from "../../../../generated/prisma";
-import {
-  createTRPCRouter,
-  protectedProcedure,
-} from "@/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import type { createTRPCContext } from "@/server/api/trpc";
 
 type Context = Awaited<ReturnType<typeof createTRPCContext>>;
@@ -51,10 +48,18 @@ const listInputSchema = z
           "email",
           "status",
           "createdAt",
+          // relation + aggregate sorts (table headers)
+          "manager",
+          "depts",
+          "reports",
         ]),
         direction: sortDirectionSchema,
       })
       .optional(),
+
+    // optional paging (server-side to match other sorts)
+    page: z.number().int().min(1).optional(),
+    pageSize: z.number().int().min(1).max(200).optional(),
   })
   .optional();
 
@@ -244,10 +249,49 @@ function applyFilters(
 function buildOrderBy(
   sort?: ListSort,
 ): Prisma.EmployeeOrderByWithRelationInput[] {
-  if (sort) {
-    return [{ [sort.field]: sort.direction } as Prisma.EmployeeOrderByWithRelationInput];
+  // default stable ordering for table (also used as tie-breakers)
+  const stable: Prisma.EmployeeOrderByWithRelationInput[] = [
+    { lastName: "asc" },
+    { firstName: "asc" },
+    { id: "asc" },
+  ];
+
+  if (!sort) return stable;
+
+  // scalar sorts can be mapped directly
+  if (
+    sort.field === "firstName" ||
+    sort.field === "lastName" ||
+    sort.field === "email" ||
+    sort.field === "status" ||
+    sort.field === "createdAt"
+  ) {
+    return [
+      {
+        [sort.field]: sort.direction,
+      } as Prisma.EmployeeOrderByWithRelationInput,
+      ...stable,
+    ];
   }
-  return [{ lastName: "asc" }, { firstName: "asc" }]; // default stable ordering for table
+
+  // relation + aggregate sorts need explicit mapping
+  if (sort.field === "manager") {
+    return [
+      { manager: { lastName: sort.direction } },
+      { manager: { firstName: sort.direction } },
+      ...stable,
+    ];
+  }
+
+  if (sort.field === "depts") {
+    return [{ departments: { _count: sort.direction } }, ...stable];
+  }
+
+  if (sort.field === "reports") {
+    return [{ directReports: { _count: sort.direction } }, ...stable];
+  }
+
+  return stable;
 }
 
 // router
@@ -264,22 +308,33 @@ export const employeesRouter = createTRPCRouter({
       const where = applyFilters(baseWhere, input?.filters);
       const orderBy = buildOrderBy(input?.sort);
 
-      // fetch list for ui table
-      return ctx.db.employee.findMany({
-        where,
-        orderBy,
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          telephone: true,
-          status: true,
-          createdAt: true,
-          manager: { select: { id: true, firstName: true, lastName: true } },
-          _count: { select: { departments: true, directReports: true } },
-        },
-      });
+      // paging (server-side)
+      const page = input?.page ?? 1;
+      const pageSize = input?.pageSize ?? 10;
+
+      // fetch list for ui table + total count
+      const [total, items] = await ctx.db.$transaction([
+        ctx.db.employee.count({ where }),
+        ctx.db.employee.findMany({
+          where,
+          orderBy,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            telephone: true,
+            status: true,
+            createdAt: true,
+            manager: { select: { id: true, firstName: true, lastName: true } },
+            _count: { select: { departments: true, directReports: true } },
+          },
+        }),
+      ]);
+
+      return { total, items };
     }),
 
   // getById return one employee include relations
