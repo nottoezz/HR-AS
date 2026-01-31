@@ -93,10 +93,10 @@ const updateInputSchema = z.object({
   departmentIds: z.array(z.string()).optional(),
 });
 
-// rbac helpers
+// auth + rbac helpers
 // ------------------------------------------------------
 
-// minimal session shape used by rbac rules
+// minimal session shape used by rbac rules and auth.me
 type SessionUser = { id: string; role: UserRole; employeeId: string | null };
 
 // pull the current user off the session and normalize types
@@ -297,6 +297,17 @@ function buildOrderBy(
 // router
 // ------------------------------------------------------
 export const employeesRouter = createTRPCRouter({
+  // current auth user info for client gating
+  // used by ui to hide hradmin-only actions
+  me: protectedProcedure.query(({ ctx }) => {
+    const sessionUser = getSessionUser(ctx);
+    return {
+      id: sessionUser.id,
+      role: sessionUser.role,
+      employeeId: sessionUser.employeeId,
+    };
+  }),
+
   // list employees (scoped by rbac + filtered + sorted)
   list: protectedProcedure
     .input(listInputSchema)
