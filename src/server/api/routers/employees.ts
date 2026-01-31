@@ -175,22 +175,21 @@ async function buildAccessWhere(
     return { id: sessionUser.employeeId };
   }
 
-  // manager can see self + anyone in departments they manage
+  // manager can see self + direct reports + employees in departments they manage
   if (isManager(sessionUser.role) && sessionUser.employeeId) {
-    // get departments managed by the manager (employeeId)
     const managed = await ctx.db.department.findMany({
       where: { managerId: sessionUser.employeeId },
       select: { id: true },
     });
-
     const deptIds = managed.map((d) => d.id);
 
     return {
       OR: [
-        // always allow self
-        { id: sessionUser.employeeId },
-        // allow employees linked to managed departments
-        { departments: { some: { departmentId: { in: deptIds } } } },
+        { id: sessionUser.employeeId }, // self
+        { managerId: sessionUser.employeeId }, // direct reports
+        ...(deptIds.length > 0
+          ? [{ departments: { some: { departmentId: { in: deptIds } } } }]
+          : []),
       ],
     };
   }
