@@ -1,6 +1,7 @@
 import NavLink from "./NavLink";
 
 const items = [
+  { href: "/profile", label: "Profile" },
   { href: "/employees", label: "Employees" },
   { href: "/departments", label: "Departments" },
 ];
