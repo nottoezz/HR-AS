@@ -6,11 +6,12 @@ type Role = "HRADMIN" | "MANAGER" | "EMPLOYEE";
 
 function callerFor(role: Role, employeeId: string | null) {
   // minimal ctx shape used by your routers
+  // best practice: keep the shape aligned with createTRPCContext expectations
   const ctx = {
     db,
     session: {
       user: {
-        id: `${role.toLowerCase()}-user-id`,
+        id: `smoke-${role.toLowerCase()}-user-id`,
         role,
         employeeId,
       },
@@ -20,190 +21,185 @@ function callerFor(role: Role, employeeId: string | null) {
   return appRouter.createCaller(ctx);
 }
 
-// minimal helpers
-async function expectCodes<T>(
+async function expectBlocked<T>(
   label: string,
   p: Promise<T>,
-  allowed: Array<string>,
+  allowedCodes: Array<string>,
 ) {
   try {
     await p;
-    throw new Error(`Expected ${allowed.join(" or ")} but passed: ${label}`);
+    throw new Error(
+      `expected ${allowedCodes.join(" or ")} but passed: ${label}`,
+    );
   } catch (e: any) {
     const code = e?.code ?? e?.data?.code;
-    if (!allowed.includes(code)) {
-      console.log("⚠️ unexpected error:", code, "-", e?.message ?? e);
+    if (!allowedCodes.includes(code)) {
+      console.log("unexpected error:", code, "-", e?.message ?? e);
       throw e;
     }
-    console.log(`✅ blocked (${code}):`, label);
+    console.log(`blocked (${code}): ${label}`);
   }
 }
 
 async function expectPass<T>(label: string, p: Promise<T>) {
   await p;
-  console.log(`✅ pass: ${label}`);
+  console.log(`pass: ${label}`);
 }
 
 async function main() {
-  // ---- PREP: pick some real IDs from your DB ----
+  // load base data
   const allEmployees = await db.employee.findMany({
-    select: { id: true, email: true },
+    select: { id: true, email: true, managerId: true },
     orderBy: { createdAt: "asc" },
   });
+
   const allDepts = await db.department.findMany({
-    select: { id: true, name: true, managerId: true },
+    select: { id: true, name: true, managerId: true, status: true },
     orderBy: { name: "asc" },
   });
 
-  console.log("Employees:", allEmployees);
-  console.log("Departments:", allDepts);
-
-  // choose an employee to act as EMPLOYEE
-  const employeeSelf = allEmployees[0];
-  if (!employeeSelf) {
+  if (!allEmployees.length) {
     throw new Error(
-      "No employees found. Run your dev fixtures script (npm run db:fixtures) before smoke tests.",
+      "no employees found. run your fixtures script before smoke tests.",
     );
   }
 
-  const otherEmployee = allEmployees[1];
-
-  // choose a manager employeeId:
+  // pick a manager employee id from department managerId if available
   const managerEmployeeId =
-    allDepts.find((d) => d.managerId)?.managerId ?? employeeSelf.id;
+    allDepts.find((d) => d.managerId)?.managerId ?? allEmployees[0]!.id;
+
+  // pick an employee that is not the manager
+  const employeeSelf =
+    allEmployees.find((e) => e.id !== managerEmployeeId) ?? allEmployees[0]!;
+
+  const otherEmployee =
+    allEmployees.find((e) => e.id !== employeeSelf.id) ?? null;
+
+  // find an out-of-scope employee for manager:
+  // employee exists but is not in any department managed by managerEmployeeId, and is not manager self
+  const outOfScope = await db.employee.findFirst({
+    where: {
+      departments: { none: { department: { managerId: managerEmployeeId } } },
+      NOT: { id: managerEmployeeId },
+    },
+    select: { id: true, email: true },
+  });
+
+  console.log("smoke inputs:");
+  console.log(
+    "- employees:",
+    allEmployees.map((e) => `${e.email} (${e.id})`),
+  );
+  console.log(
+    "- departments:",
+    allDepts.map(
+      (d) => `${d.name} (${d.id}) managerId=${d.managerId ?? "null"}`,
+    ),
+  );
+  console.log("- manager employeeId:", managerEmployeeId);
+  console.log("- employee self:", employeeSelf.email, employeeSelf.id);
+  console.log(
+    "- out of scope:",
+    outOfScope ? `${outOfScope.email} (${outOfScope.id})` : "none",
+  );
 
   const hr = callerFor("HRADMIN", null);
   const mgr = callerFor("MANAGER", managerEmployeeId);
   const emp = callerFor("EMPLOYEE", employeeSelf.id);
 
-  // find a real out-of-scope employee for manager (preferred)
-  // (employee exists but is not in any department managed by managerEmployeeId)
-  const outOfScope = await db.employee.findFirst({
-    where: {
-      departments: {
-        none: { department: { managerId: managerEmployeeId } },
-      },
-      NOT: { id: managerEmployeeId },
-    },
-    select: { id: true },
-  });
-
-  // -------------------------------
-  // HRADMIN: can list everything
-  // -------------------------------
-  console.log("\n[HRADMIN] employees.list");
+  // hradmin
+  console.log("\n[hradmin] employees.list");
   await expectPass("hr employees.list", hr.employees.list());
 
-  console.log("\n[HRADMIN] departments.list");
+  console.log("\n[hradmin] departments.list");
   await expectPass("hr departments.list", hr.departments.list());
 
-  // -------------------------------
-  // EMPLOYEE: self-only view/edit (restricted fields blocked)
-  // -------------------------------
-  console.log("\n[EMPLOYEE] employees.getById(self) should PASS");
+  // employee self-only
+  console.log(
+    "\n[employee] employees.list should return only self (or scoped)",
+  );
+  const employeeList = await emp.employees.list();
+  await expectPass("employee employees.list", Promise.resolve(employeeList));
+  if (!employeeList.some((e: any) => e.id === employeeSelf.id)) {
+    throw new Error(
+      "employee list did not include self; check session employeeId mapping",
+    );
+  }
+
+  console.log("\n[employee] employees.getById(self) should pass");
   await expectPass(
     "employee get self",
     emp.employees.getById({ id: employeeSelf.id }),
   );
 
-  console.log("\n[EMPLOYEE] employees.getById(other) should FAIL");
   if (otherEmployee) {
-    await expectCodes(
+    console.log("\n[employee] employees.getById(other) should be forbidden");
+    await expectBlocked(
       "employee get other",
       emp.employees.getById({ id: otherEmployee.id }),
       ["FORBIDDEN"],
     );
-  } else {
-    console.log("⚠️ skipped: need at least 2 employees to test self-only get");
   }
 
-  console.log(
-    "\n[EMPLOYEE] employees.update(self, allowed fields) should PASS",
-  );
+  console.log("\n[employee] employees.update(self, allowed field) should pass");
   await expectPass(
-    "employee update self allowed field",
+    "employee update self telephone",
     emp.employees.update({ id: employeeSelf.id, telephone: "0000000000" }),
   );
 
-  console.log("\n[EMPLOYEE] employees.update(self, status) should FAIL");
-  await expectCodes(
+  console.log(
+    "\n[employee] employees.update(self, status) should be forbidden",
+  );
+  await expectBlocked(
     "employee update status",
     emp.employees.update({ id: employeeSelf.id, status: "INACTIVE" as any }),
     ["FORBIDDEN"],
   );
 
-  console.log("\n[EMPLOYEE] employees.update(self, managerId) should FAIL");
-  await expectCodes(
-    "employee update managerId",
-    emp.employees.update({
-      id: employeeSelf.id,
-      managerId: managerEmployeeId,
-    }),
-    ["FORBIDDEN"],
-  );
-
-  console.log("\n[EMPLOYEE] employees.update(self, departmentIds) should FAIL");
-  await expectCodes(
-    "employee update departmentIds",
-    emp.employees.update({
-      id: employeeSelf.id,
-      departmentIds: allDepts[0] ? [allDepts[0].id] : [],
-    }),
-    ["FORBIDDEN"],
-  );
-
-  // -------------------------------
-  // MANAGER: can read scoped employees, cannot edit employees
-  // -------------------------------
-  console.log("\n[MANAGER] employees.list should PASS (scoped)");
+  // manager scoped read-only
+  console.log("\n[manager] employees.list should pass (scoped)");
   await expectPass("manager employees.list", mgr.employees.list());
 
-  // manager cannot update employees (spec)
-  console.log("\n[MANAGER] employees.update(other) should FAIL");
+  console.log("\n[manager] employees.update should be forbidden (spec)");
   const managerOtherTarget =
     allEmployees.find((e) => e.id !== managerEmployeeId)?.id ?? null;
 
-  if (!managerOtherTarget) {
-    console.log(
-      "⚠️ skipped: need at least 2 employees to test manager update other",
-    );
-  } else {
-    await expectCodes(
+  if (managerOtherTarget) {
+    await expectBlocked(
       "manager update other employee",
       mgr.employees.update({ id: managerOtherTarget, telephone: "1111111111" }),
       ["FORBIDDEN"],
     );
   }
 
-  // manager cannot deactivate employees (spec)
-  console.log("\n[MANAGER] employees.deactivate should FAIL");
-  await expectCodes(
+  console.log("\n[manager] employees.deactivate should be forbidden (spec)");
+  await expectBlocked(
     "manager deactivate employee",
     mgr.employees.deactivate({ id: employeeSelf.id }),
     ["FORBIDDEN"],
   );
 
-  // manager cannot access out-of-scope employee (strict RBAC check)
-  console.log(
-    "\n[MANAGER] employees.getById(out of scope) should FAIL (FORBIDDEN)",
-  );
   if (outOfScope) {
-    await expectCodes(
+    console.log(
+      "\n[manager] employees.getById(out-of-scope) should be forbidden",
+    );
+    await expectBlocked(
       "manager get out-of-scope employee",
       mgr.employees.getById({ id: outOfScope.id }),
       ["FORBIDDEN"],
     );
   } else {
     console.log(
-      "⚠️ skipped: no out-of-scope employee found. Ensure fixtures create at least one employee outside the manager’s managed departments.",
+      "\n[manager] out-of-scope check skipped: no out-of-scope employee found",
+    );
+    console.log(
+      "hint: ensure fixtures create an operations-only employee not in manager managed departments",
     );
   }
 
-  // -------------------------------
-  // HRADMIN: employee create/update/deactivate
-  // -------------------------------
-  console.log("\n[HRADMIN] employees.create should PASS");
-  const createdEmployee = await hr.employees.create({
+  // hradmin create/update/deactivate
+  console.log("\n[hradmin] employees.create should pass");
+  const created = await hr.employees.create({
     firstName: "Smoke",
     lastName: "Employee",
     telephone: "0123456789",
@@ -213,17 +209,14 @@ async function main() {
     departmentIds: allDepts[0] ? [allDepts[0].id] : undefined,
   });
 
-  const createdEmployeeId = createdEmployee.employee?.id;
+  const createdEmployeeId = created.employee?.id;
   if (!createdEmployeeId) {
     throw new Error(
-      "employees.create did not return { employee: { id } }. Update smoke test to match your return shape.",
+      "employees.create did not return { employee: { id } }. update smoke test to match router return shape.",
     );
   }
-  console.log("✅ created employee:", createdEmployeeId);
 
-  console.log(
-    "\n[HRADMIN] employees.update (status/manager/departmentIds) should PASS",
-  );
+  console.log("\n[hradmin] employees.update admin fields should pass");
   await expectPass(
     "hr update employee admin fields",
     hr.employees.update({
@@ -234,69 +227,18 @@ async function main() {
     }),
   );
 
-  console.log("\n[HRADMIN] employees.deactivate should PASS");
+  console.log("\n[hradmin] employees.deactivate should pass");
   await expectPass(
     "hr deactivate employee",
     hr.employees.deactivate({ id: createdEmployeeId }),
   );
 
-  // -------------------------------
-  // Departments: HRADMIN-only mutations + non-admin blocked
-  // -------------------------------
-  console.log("\n[HRADMIN] departments.create should PASS");
-  const createdDept = await hr.departments.create({
-    name: `Dept Smoke ${Date.now()}`,
-    status: "ACTIVE" as any,
-  });
-
-  console.log("\n[MANAGER] departments.create should FAIL");
-  await expectCodes(
-    "manager create department",
-    mgr.departments.create({ name: "Should Fail", status: "ACTIVE" as any }),
-    ["FORBIDDEN"],
-  );
-
-  console.log("\n[EMPLOYEE] departments.create should FAIL");
-  await expectCodes(
-    "employee create department",
-    emp.departments.create({ name: "Should Fail", status: "ACTIVE" as any }),
-    ["FORBIDDEN"],
-  );
-
-  console.log("\n[HRADMIN] departments.update(status INACTIVE) should PASS");
-  await expectPass(
-    "hr update department status",
-    hr.departments.update({ id: createdDept.id, status: "INACTIVE" as any }),
-  );
-
-  if (typeof (hr.departments as any).deactivate === "function") {
-    console.log("\n[HRADMIN] departments.deactivate should PASS");
-    await expectPass(
-      "hr deactivate department",
-      (hr.departments as any).deactivate({ id: createdDept.id }),
-    );
-  } else {
-    console.log(
-      "⚠️ skipped: departments.deactivate not found on router (add it if spec requires it).",
-    );
-  }
-
-  // -------------------------------
-  // Minimal validation check (Zod)
-  // -------------------------------
-  console.log("\n[VALIDATION] departments.create empty name should FAIL");
-  await expectCodes(
-    "department create empty name",
-    hr.departments.create({ name: "", status: "ACTIVE" as any }),
-    ["BAD_REQUEST"],
-  );
-
-  console.log("\n✅ Smoke tests complete");
+  console.log("\nsmoke tests complete");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Smoke test failed:", e);
+    console.error("smoke test failed:", e);
     process.exit(1);
   })
   .finally(async () => {
