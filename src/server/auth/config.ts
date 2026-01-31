@@ -14,11 +14,18 @@ const credentialsSchema = z.object({
 
 declare module "next-auth" {
   interface Session extends DefaultSession {
-    user: { id: string; role: string } & DefaultSession["user"];
+    user: {
+      id: string;
+      role: string;
+      employeeId: string | null;
+    } & DefaultSession["user"];
   }
 }
 
-type TokenWithRole = { role?: string } & Record<string, unknown>;
+type TokenWithRole = {
+  role?: string;
+  employeeId?: string | null;
+} & Record<string, unknown>;
 
 export const authConfig = {
   adapter: PrismaAdapter(db),
@@ -52,6 +59,7 @@ export const authConfig = {
             email: true,
             name: true,
             role: true,
+            employeeId: true,
             passwordHash: true,
           },
         });
@@ -66,6 +74,7 @@ export const authConfig = {
           email: user.email ?? undefined,
           name: user.name ?? undefined,
           role: String(user.role),
+          employeeId: user.employeeId ?? null,
         };
       },
     }),
@@ -75,10 +84,11 @@ export const authConfig = {
     async jwt({ token, user }) {
       if (user) {
         const t = token as TokenWithRole;
-        const u = user as { id: string; role?: string };
+        const u = user as { id: string; role?: string; employeeId?: string | null };
 
         token.sub = u.id;
         t.role = u.role;
+        t.employeeId = u.employeeId ?? null;
       }
       return token;
     },
@@ -89,6 +99,7 @@ export const authConfig = {
       if (session.user && token.sub) {
         session.user.id = token.sub;
         session.user.role = t.role ?? "EMPLOYEE";
+        session.user.employeeId = t.employeeId ?? null;
       }
       return session;
     },
