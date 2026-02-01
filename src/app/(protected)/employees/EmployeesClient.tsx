@@ -3,6 +3,8 @@
 import * as React from "react";
 import { api } from "@/trpc/react";
 import { useEmployeesSelection } from "./EmployeesSelectionContext";
+import EmployeesFilterBar from "./EmployeesFilterBar";
+import { useSearchParams } from "next/navigation";
 
 // employees table client
 // server sorted paginated list with optimistic status toggle
@@ -39,9 +41,54 @@ function statusPillClass(s: Status) {
     : "border-muted bg-muted/40 text-muted-foreground";
 }
 
+// small helpers for reading url params
+function splitCsv(v: string | null) {
+  if (!v) return [];
+  return v
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function strOrUndef(v: string | null) {
+  if (!v) return undefined;
+  const s = v.trim();
+  return s ? s : undefined;
+}
+
 export default function EmployeesClient() {
   // selected row lives in context so header actions can use it
   const { selectedId, setSelectedId } = useEmployeesSelection();
+
+  // url state for filters (filter bar writes to these params)
+  const sp = useSearchParams();
+
+  const filters = React.useMemo(() => {
+    const firstName = strOrUndef(sp.get("firstName"));
+    const lastName = strOrUndef(sp.get("lastName"));
+    const email = strOrUndef(sp.get("email"));
+
+    const statusCsv = splitCsv(sp.get("status"));
+    const status = statusCsv.length
+      ? statusCsv.filter(
+          (s): s is Status => s === "ACTIVE" || s === "INACTIVE",
+        )
+      : undefined;
+
+    const departmentIds = splitCsv(sp.get("departmentIds"));
+    const managerId = strOrUndef(sp.get("managerId"));
+
+    const next = {
+      ...(firstName ? { firstName } : {}),
+      ...(lastName ? { lastName } : {}),
+      ...(email ? { email } : {}),
+      ...(status?.length ? { status } : {}),
+      ...(departmentIds.length ? { departmentIds } : {}),
+      ...(managerId ? { managerId } : {}),
+    };
+
+    return Object.keys(next).length ? next : undefined;
+  }, [sp]);
 
   // trpc cache helpers for optimistic updates and invalidation
   const utils = api.useUtils();
@@ -72,8 +119,8 @@ export default function EmployeesClient() {
 
   // stable query input so react query caching behaves
   const listInput = React.useMemo(
-    () => ({ sort, page, pageSize }),
-    [sort, page, pageSize],
+    () => ({ sort, page, pageSize, filters }),
+    [sort, page, pageSize, filters],
   );
 
   // employees list
@@ -113,7 +160,7 @@ export default function EmployeesClient() {
   // reset to page 1 when query shape changes
   React.useEffect(() => {
     setPage(1);
-  }, [sort.field, sort.direction, pageSize]);
+  }, [sort.field, sort.direction, pageSize, filters]);
 
   // clamp page if data size changes under us
   React.useEffect(() => {
@@ -306,234 +353,243 @@ export default function EmployeesClient() {
   }
 
   return (
-    <section className="bg-background overflow-hidden rounded-lg border">
-      {/* we keep old data on screen but tell the user the refresh failed */}
-      {q.isError && (
-        <div className="border-destructive/40 bg-destructive/10 border-b px-6 py-3">
-          <p className="text-destructive text-xs">
-            Unable to refresh employees; showing the last loaded results.
-          </p>
-        </div>
-      )}
+    <>
+      <EmployeesFilterBar />
+      <section className="bg-background overflow-hidden rounded-lg border">
+        {/* we keep old data on screen but tell the user the refresh failed */}
+        {q.isError && (
+          <div className="border-destructive/40 bg-destructive/10 border-b px-6 py-3">
+            <p className="text-destructive text-xs">
+              Unable to refresh employees; showing the last loaded results.
+            </p>
+          </div>
+        )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40 border-b text-left">
-            <tr className="[&>th]:px-6 [&>th]:py-3 [&>th]:font-medium">
-              <th>
-                <ThButton label="Name" field="lastName" />
-              </th>
-              <th>
-                <ThButton label="Email" field="email" />
-              </th>
-              <th>
-                <ThButton label="Status" field="status" />
-              </th>
-              <th>
-                <ThButton label="Manager" field="manager" />
-              </th>
-              <th className="text-right">
-                <ThButton label="Depts" field="depts" />
-              </th>
-              <th className="text-right">
-                <ThButton label="Reports" field="reports" />
-              </th>
-            </tr>
-          </thead>
-
-          <tbody className="divide-y">
-            {/* empty state */}
-            {items.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="text-muted-foreground px-6 py-6 text-sm"
-                >
-                  No employees found.
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 border-b text-left">
+              <tr className="[&>th]:px-6 [&>th]:py-3 [&>th]:font-medium">
+                <th>
+                  <ThButton label="Name" field="lastName" />
+                </th>
+                <th>
+                  <ThButton label="Email" field="email" />
+                </th>
+                <th>
+                  <ThButton label="Status" field="status" />
+                </th>
+                <th>
+                  <ThButton label="Manager" field="manager" />
+                </th>
+                <th className="text-right">
+                  <ThButton label="Depts" field="depts" />
+                </th>
+                <th className="text-right">
+                  <ThButton label="Reports" field="reports" />
+                </th>
               </tr>
-            ) : (
-              items.map((e) => {
-                // simple display strings for the row
-                const name = `${e.firstName} ${e.lastName}`;
-                const managerName = e.manager
-                  ? `${e.manager.firstName} ${e.manager.lastName}`
-                  : "—";
+            </thead>
 
-                // normalize status into our union for styling
-                const effectiveStatus = (e.status as Status) ?? "INACTIVE";
-
-                // local state flags
-                const statusBusy = savingIds.has(e.id);
-                const showRowError = Boolean(rowError[e.id]);
-
-                // selection is hradmin only
-                const canSelectRow = Boolean(isHRAdmin);
-                const isSelected = canSelectRow && selectedId === e.id;
-
-                // toggling is hradmin only and disabled while busy
-                const canToggleStatus = Boolean(isHRAdmin) && !statusBusy;
-
-                return (
-                  <tr
-                    key={e.id}
-                    onClick={() => toggleSelectedRow(e.id)}
-                    onKeyDown={(ev) => {
-                      // keyboard support for selection
-                      if (ev.key === "Enter" || ev.key === " ") {
-                        ev.preventDefault();
-                        toggleSelectedRow(e.id);
-                      }
-                    }}
-                    tabIndex={canSelectRow ? 0 : -1}
-                    aria-selected={isSelected}
-                    className={cx(
-                      "transition-colors [&>td]:px-6 [&>td]:py-3",
-                      canSelectRow ? "hover:bg-muted/30 cursor-pointer" : "",
-                      isSelected && "bg-red-500/10",
-                      canSelectRow &&
-                        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-                    )}
+            <tbody className="divide-y">
+              {/* empty state */}
+              {items.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="text-muted-foreground px-6 py-6 text-sm"
                   >
-                    <td className="font-medium">{name}</td>
-                    <td className="text-muted-foreground">{e.email}</td>
+                    No employees found.
+                  </td>
+                </tr>
+              ) : (
+                items.map((e) => {
+                  // simple display strings for the row
+                  const name = `${e.firstName} ${e.lastName}`;
+                  const managerName = e.manager
+                    ? `${e.manager.firstName} ${e.manager.lastName}`
+                    : "—";
 
-                    <td>
-                      <button
-                        type="button"
-                        onClick={(ev) => {
-                          // keep row click from firing when toggling status
-                          ev.stopPropagation();
-                          if (!canToggleStatus) return;
-                          onToggleStatus(e.id, effectiveStatus);
-                        }}
-                        className={cx(
-                          "inline-flex items-center justify-between",
-                          "min-w-[7.5rem] gap-2",
-                          "rounded-md border px-2 py-0.5 text-xs font-medium",
-                          statusPillClass(effectiveStatus),
-                          isHRAdmin &&
-                            "hover:bg-muted/40 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-                          !isHRAdmin && "cursor-default",
-                          statusBusy && "cursor-not-allowed opacity-70",
-                        )}
-                        aria-label={`Status for ${name}`}
-                        title={
-                          statusBusy
-                            ? "Updating…"
-                            : isHRAdmin
-                              ? "Click to toggle status"
-                              : "Status"
+                  // normalize status into our union for styling
+                  const effectiveStatus = (e.status as Status) ?? "INACTIVE";
+
+                  // local state flags
+                  const statusBusy = savingIds.has(e.id);
+                  const showRowError = Boolean(rowError[e.id]);
+
+                  // selection is hradmin only
+                  const canSelectRow = Boolean(isHRAdmin);
+                  const isSelected = canSelectRow && selectedId === e.id;
+
+                  // toggling is hradmin only and disabled while busy
+                  const canToggleStatus = Boolean(isHRAdmin) && !statusBusy;
+
+                  return (
+                    <tr
+                      key={e.id}
+                      onClick={() => toggleSelectedRow(e.id)}
+                      onKeyDown={(ev) => {
+                        // keyboard support for selection
+                        if (ev.key === "Enter" || ev.key === " ") {
+                          ev.preventDefault();
+                          toggleSelectedRow(e.id);
                         }
-                        disabled={!isHRAdmin || statusBusy}
-                      >
-                        <span className="tabular-nums">{effectiveStatus}</span>
-                        {/* tiny busy dot so the user sees something happening */}
-                        <span
-                          aria-hidden="true"
-                          className={cx(
-                            "h-2 w-2 rounded-full",
-                            statusBusy
-                              ? "bg-muted animate-pulse"
-                              : "bg-transparent",
-                          )}
-                        />
-                      </button>
-
-                      {/* row level failure message so we do not break the whole table */}
-                      {showRowError && (
-                        <div className="text-destructive mt-1 text-[11px]">
-                          failed to update status
-                        </div>
+                      }}
+                      tabIndex={canSelectRow ? 0 : -1}
+                      aria-selected={isSelected}
+                      className={cx(
+                        "transition-colors [&>td]:px-6 [&>td]:py-3",
+                        canSelectRow ? "hover:bg-muted/30 cursor-pointer" : "",
+                        isSelected && "bg-red-500/10",
+                        canSelectRow &&
+                          "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
                       )}
-                    </td>
+                    >
+                      <td className="font-medium">{name}</td>
+                      <td className="text-muted-foreground">{e.email}</td>
 
-                    <td className="text-muted-foreground">{managerName}</td>
-                    <td className="text-right tabular-nums">
-                      {e._count.departments}
-                    </td>
-                    <td className="text-right tabular-nums">
-                      {e._count.directReports}
-                    </td>
-                  </tr>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={(ev) => {
+                            // keep row click from firing when toggling status
+                            ev.stopPropagation();
+                            if (!canToggleStatus) return;
+                            onToggleStatus(e.id, effectiveStatus);
+                          }}
+                          className={cx(
+                            "inline-flex items-center justify-between",
+                            "min-w-[7.5rem] gap-2",
+                            "rounded-md border px-2 py-0.5 text-xs font-medium",
+                            statusPillClass(effectiveStatus),
+                            isHRAdmin &&
+                              "hover:bg-muted/40 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+                            !isHRAdmin && "cursor-default",
+                            statusBusy && "cursor-not-allowed opacity-70",
+                          )}
+                          aria-label={`Status for ${name}`}
+                          title={
+                            statusBusy
+                              ? "Updating…"
+                              : isHRAdmin
+                                ? "Click to toggle status"
+                                : "Status"
+                          }
+                          disabled={!isHRAdmin || statusBusy}
+                        >
+                          <span className="tabular-nums">
+                            {effectiveStatus}
+                          </span>
+                          {/* tiny busy dot so the user sees something happening */}
+                          <span
+                            aria-hidden="true"
+                            className={cx(
+                              "h-2 w-2 rounded-full",
+                              statusBusy
+                                ? "bg-muted animate-pulse"
+                                : "bg-transparent",
+                            )}
+                          />
+                        </button>
+
+                        {/* row level failure message so we do not break the whole table */}
+                        {showRowError && (
+                          <div className="text-destructive mt-1 text-[11px]">
+                            failed to update status
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="text-muted-foreground">{managerName}</td>
+                      <td className="text-right tabular-nums">
+                        {e._count.departments}
+                      </td>
+                      <td className="text-right tabular-nums">
+                        {e._count.directReports}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* pagination bar */}
+        <div className="relative flex items-center border-t px-6 py-3 text-sm">
+          {/* left side page indicator with editable input */}
+          <div className="text-muted-foreground flex items-center gap-1 text-xs">
+            <span>Page</span>
+            <input
+              inputMode="numeric"
+              value={pageInput}
+              onChange={(e) => setPageInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitPageInput();
+              }}
+              onBlur={commitPageInput}
+              className={cx(
+                "text-foreground bg-transparent tabular-nums",
+                "w-[2.5ch] text-center",
+                "outline-none",
+                "focus-visible:border-foreground/40 focus-visible:border-b",
+              )}
+              aria-label="Current page"
+            />
+            <span>/ {totalPages}</span>
+          </div>
+
+          {/* centered prev next controls */}
+          <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className={cx(
+                "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
+                "disabled:cursor-not-allowed disabled:opacity-50",
+              )}
+            >
+              Prev
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className={cx(
+                "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
+                "disabled:cursor-not-allowed disabled:opacity-50",
+              )}
+            >
+              Next
+            </button>
+          </div>
+
+          {/* right side page size input */}
+          <div className="ml-auto flex items-center gap-2">
+            <label className="text-muted-foreground text-xs" htmlFor="pageSize">
+              Per page
+            </label>
+            <input
+              id="pageSize"
+              inputMode="numeric"
+              value={pageSizeInput}
+              onChange={(e) => setPageSizeInput(e.target.value)}
+              onBlur={() => {
+                // normalize on blur so the ui matches what we actually request
+                const normalized = clampInt(
+                  Number(pageSizeInput || 10),
+                  1,
+                  200,
                 );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* pagination bar */}
-      <div className="relative flex items-center border-t px-6 py-3 text-sm">
-        {/* left side page indicator with editable input */}
-        <div className="text-muted-foreground flex items-center gap-1 text-xs">
-          <span>Page</span>
-          <input
-            inputMode="numeric"
-            value={pageInput}
-            onChange={(e) => setPageInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitPageInput();
-            }}
-            onBlur={commitPageInput}
-            className={cx(
-              "text-foreground bg-transparent tabular-nums",
-              "w-[2.5ch] text-center",
-              "outline-none",
-              "focus-visible:border-foreground/40 focus-visible:border-b",
-            )}
-            aria-label="Current page"
-          />
-          <span>/ {totalPages}</span>
+                setPageSizeInput(String(normalized));
+              }}
+              className="bg-background focus-visible:ring-ring h-9 w-11 rounded-md border px-2 text-sm outline-none focus-visible:ring-2"
+              aria-label="Employees per page"
+            />
+          </div>
         </div>
-
-        {/* centered prev next controls */}
-        <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            className={cx(
-              "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-            )}
-          >
-            Prev
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-            className={cx(
-              "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-            )}
-          >
-            Next
-          </button>
-        </div>
-
-        {/* right side page size input */}
-        <div className="ml-auto flex items-center gap-2">
-          <label className="text-muted-foreground text-xs" htmlFor="pageSize">
-            Per page
-          </label>
-          <input
-            id="pageSize"
-            inputMode="numeric"
-            value={pageSizeInput}
-            onChange={(e) => setPageSizeInput(e.target.value)}
-            onBlur={() => {
-              // normalize on blur so the ui matches what we actually request
-              const normalized = clampInt(Number(pageSizeInput || 10), 1, 200);
-              setPageSizeInput(String(normalized));
-            }}
-            className="bg-background focus-visible:ring-ring h-9 w-11 rounded-md border px-2 text-sm outline-none focus-visible:ring-2"
-            aria-label="Employees per page"
-          />
-        </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
 }
