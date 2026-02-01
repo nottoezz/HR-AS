@@ -4,98 +4,126 @@ import * as React from "react";
 import { api } from "@/trpc/react";
 import { useDepartmentsSelection } from "./DepartmentsSelectionContext";
 
-type SortField = "name" | "manager" | "status" | "createdAt";
+// client table for departments
+// server sorted paginated list with optimistic status toggle
+// row selection is hradmin only and stored in context
+
+type SortField = "name" | "manager" | "status";
 type SortDir = "asc" | "desc";
 type Status = "ACTIVE" | "INACTIVE";
 
+// tiny class join helper
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
+// clamp user input so we do not request silly pages or sizes
 function clampInt(n: number, min: number, max: number) {
   if (!Number.isFinite(n)) return min;
   return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 
+// status pill styling
 function statusPillClass(s: Status) {
   return s === "ACTIVE"
     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
     : "border-muted bg-muted/40 text-muted-foreground";
 }
 
+// normalize api strings into our union
 function asStatus(s: string): Status {
   return s === "ACTIVE" ? "ACTIVE" : "INACTIVE";
 }
 
 export default function DepartmentsClient() {
+  // selected row lives in context so header actions can use it
   const { selectedId, setSelectedId } = useDepartmentsSelection();
+
+  // trpc cache helpers for optimistic updates
   const utils = api.useUtils();
 
-  // fetch current user role (cached, cheap)
+  // who am i and what am i allowed to do
   const meQ = api.employees.me.useQuery(undefined, {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
   const isHRAdmin = meQ.data?.role === "HRADMIN";
 
+  // current server sort
   const [sort, setSort] = React.useState<{
     field: SortField;
     direction: SortDir;
   }>({ field: "name", direction: "asc" });
 
+  // current page and editable inputs
   const [page, setPage] = React.useState(1);
   const [pageInput, setPageInput] = React.useState("1");
   const [pageSizeInput, setPageSizeInput] = React.useState("10");
 
+  // derived page size from user input
   const pageSize = React.useMemo(
     () => clampInt(Number(pageSizeInput), 1, 200),
     [pageSizeInput],
   );
 
+  // stable query input so react query caching behaves
   const listInput = React.useMemo(
     () => ({ sort, page, pageSize }),
     [sort, page, pageSize],
   );
 
+  // departments list
+  // placeholderData keeps the table interactive while a refetch happens
   const q = api.departments.list.useQuery(listInput, {
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
   });
 
+  // safe defaults for render
   const items = React.useMemo(() => q.data?.items ?? [], [q.data?.items]);
   const total = q.data?.total ?? 0;
 
+  // derived pagination
   const totalPages = React.useMemo(
     () => Math.max(1, Math.ceil(total / pageSize)),
     [total, pageSize],
   );
 
+  // only show skeleton on first load
   const isInitialLoading = q.isLoading && items.length === 0;
 
+  // track optimistic toggles per row
   const [savingIds, setSavingIds] = React.useState<Set<string>>(
     () => new Set(),
   );
+
+  // per row error flag when mutation fails
   const [rowError, setRowError] = React.useState<Record<string, boolean>>({});
 
+  // keep the input in sync when page changes from buttons or clamping
   React.useEffect(() => {
     setPageInput(String(page));
   }, [page]);
 
+  // reset to page 1 when query shape changes
   React.useEffect(() => {
     setPage(1);
   }, [sort.field, sort.direction, pageSize]);
 
+  // clamp page if data size changes under us
   React.useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
 
+  // commit the typed page input into the real page state
   const commitPageInput = React.useCallback(() => {
     const normalized = clampInt(Number(pageInput || 1), 1, totalPages);
     setPage(normalized);
     setPageInput(String(normalized));
   }, [pageInput, totalPages]);
 
+  // toggle sort direction and switch fields
   const toggleSort = React.useCallback((field: SortField) => {
     setSort((prev) => {
       if (prev.field !== field) return { field, direction: "asc" };
@@ -106,6 +134,7 @@ export default function DepartmentsClient() {
     });
   }, []);
 
+  // small glyph helper for the table header
   const SortIcon = React.useCallback(
     ({ active, dir }: { active: boolean; dir: SortDir }) => (
       <span
@@ -121,6 +150,7 @@ export default function DepartmentsClient() {
     [],
   );
 
+  // table header button that wires up aria sort and click behavior
   const ThButton = React.useCallback(
     ({ label, field }: { label: string; field: SortField }) => {
       const active = sort.field === field;
@@ -149,7 +179,7 @@ export default function DepartmentsClient() {
     [sort.field, sort.direction, toggleSort, SortIcon],
   );
 
-  // if not hradmin, clear selection and keep it cleared
+  // if not hradmin clear selection and keep it cleared
   React.useEffect(() => {
     if (isHRAdmin) return;
     if (selectedId) setSelectedId(null);
@@ -162,10 +192,13 @@ export default function DepartmentsClient() {
     if (!stillVisible) setSelectedId(null);
   }, [items, selectedId, setSelectedId]);
 
+  // update department status with optimistic ui
   const updateM = api.departments.update.useMutation({
     async onMutate(vars) {
+      // stop in flight list requests so we do not overwrite our optimistic change
       await utils.departments.list.cancel(listInput);
 
+      // clear old error for this row when we try again
       setRowError((prev) => {
         if (!prev[vars.id]) return prev;
         const next = { ...prev };
@@ -173,14 +206,17 @@ export default function DepartmentsClient() {
         return next;
       });
 
+      // mark row as busy
       setSavingIds((prev) => {
         const next = new Set(prev);
         next.add(vars.id);
         return next;
       });
 
+      // snapshot previous list so we can revert on error
       const previous = utils.departments.list.getData(listInput);
 
+      // apply optimistic status update
       const newStatus = vars.status;
       utils.departments.list.setData(listInput, (old) => {
         if (!old) return old;
@@ -196,10 +232,13 @@ export default function DepartmentsClient() {
       return { previous };
     },
     onError(_err, vars, ctx) {
+      // revert optimistic change
       if (ctx?.previous) utils.departments.list.setData(listInput, ctx.previous);
 
+      // show error under the row
       setRowError((prev) => ({ ...prev, [vars.id]: true }));
 
+      // clear busy state
       setSavingIds((prev) => {
         const next = new Set(prev);
         next.delete(vars.id);
@@ -207,6 +246,7 @@ export default function DepartmentsClient() {
       });
     },
     onSuccess(_data, vars) {
+      // clear busy state on success
       setSavingIds((prev) => {
         const next = new Set(prev);
         next.delete(vars.id);
@@ -214,15 +254,18 @@ export default function DepartmentsClient() {
       });
     },
     onSettled() {
+      // revalidate list so we end in sync with the server
       void utils.departments.list.invalidate(listInput);
     },
   });
 
+  // click handler for status pill
   const onToggleStatus = React.useCallback(
     (id: string, current: Status) => {
-      // if not hradmin, do nothing
+      // if not hradmin do nothing
       if (!isHRAdmin) return;
 
+      // guard against double clicks while busy
       setSavingIds((prev) => {
         if (prev.has(id)) return prev;
         const next = current === "ACTIVE" ? "INACTIVE" : "ACTIVE";
@@ -233,7 +276,7 @@ export default function DepartmentsClient() {
     [isHRAdmin, updateM],
   );
 
-  // row selection is hradmin only (no functional updater; context setter wants a value)
+  // row selection is hradmin only
   const toggleSelectedRow = React.useCallback(
     (id: string) => {
       if (!isHRAdmin) return;
@@ -242,6 +285,7 @@ export default function DepartmentsClient() {
     [isHRAdmin, selectedId, setSelectedId],
   );
 
+  // initial skeleton
   if (isInitialLoading) {
     return (
       <section className="bg-background rounded-lg border">
@@ -258,6 +302,7 @@ export default function DepartmentsClient() {
 
   return (
     <section className="bg-background overflow-hidden rounded-lg border">
+      {/* we keep old data on screen but tell the user the refresh failed */}
       {q.isError && (
         <div className="border-destructive/40 bg-destructive/10 border-b px-6 py-3">
           <p className="text-destructive text-xs">
@@ -283,6 +328,7 @@ export default function DepartmentsClient() {
           </thead>
 
           <tbody className="divide-y">
+            {/* empty state */}
             {items.length === 0 ? (
               <tr>
                 <td
@@ -294,17 +340,23 @@ export default function DepartmentsClient() {
               </tr>
             ) : (
               items.map((d) => {
+                // manager label for the table
                 const managerName = d.manager
                   ? `${d.manager.firstName} ${d.manager.lastName}`
                   : "—";
 
+                // status might be a string from prisma so normalize it
                 const effectiveStatus = asStatus(d.status);
+
+                // local state flags
                 const statusBusy = savingIds.has(d.id);
                 const showRowError = Boolean(rowError[d.id]);
 
+                // selection is hradmin only
                 const canSelectRow = Boolean(isHRAdmin);
                 const isSelected = canSelectRow && selectedId === d.id;
 
+                // toggling is hradmin only and disabled while busy
                 const canToggleStatus = Boolean(isHRAdmin) && !statusBusy;
 
                 return (
@@ -312,6 +364,7 @@ export default function DepartmentsClient() {
                     key={d.id}
                     onClick={() => toggleSelectedRow(d.id)}
                     onKeyDown={(ev) => {
+                      // keyboard support for selection
                       if (ev.key === "Enter" || ev.key === " ") {
                         ev.preventDefault();
                         toggleSelectedRow(d.id);
@@ -335,6 +388,7 @@ export default function DepartmentsClient() {
                         <button
                           type="button"
                           onClick={(ev) => {
+                            // keep row click from firing when toggling status
                             ev.stopPropagation();
                             if (!canToggleStatus) return;
                             onToggleStatus(d.id, effectiveStatus);
@@ -360,6 +414,7 @@ export default function DepartmentsClient() {
                           disabled={!isHRAdmin || statusBusy}
                         >
                           <span className="tabular-nums">{effectiveStatus}</span>
+                          {/* tiny busy dot so the user sees something happening */}
                           <span
                             aria-hidden="true"
                             className={cx(
@@ -371,6 +426,7 @@ export default function DepartmentsClient() {
                           />
                         </button>
 
+                        {/* row level failure message so we do not break the whole table */}
                         {showRowError && (
                           <div className="text-destructive mt-1 text-[11px]">
                             failed to update status
@@ -386,7 +442,9 @@ export default function DepartmentsClient() {
         </table>
       </div>
 
+      {/* pagination bar */}
       <div className="relative flex items-center border-t px-6 py-3 text-sm">
+        {/* left side page indicator with editable input */}
         <div className="text-muted-foreground flex items-center gap-1 text-xs">
           <span>Page</span>
           <input
@@ -408,6 +466,7 @@ export default function DepartmentsClient() {
           <span>/ {totalPages}</span>
         </div>
 
+        {/* centered prev next controls */}
         <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2">
           <button
             type="button"
@@ -434,6 +493,7 @@ export default function DepartmentsClient() {
           </button>
         </div>
 
+        {/* right side page size input */}
         <div className="ml-auto flex items-center gap-2">
           <label className="text-muted-foreground text-xs" htmlFor="pageSize">
             Per page
@@ -444,6 +504,7 @@ export default function DepartmentsClient() {
             value={pageSizeInput}
             onChange={(e) => setPageSizeInput(e.target.value)}
             onBlur={() => {
+              // normalize on blur so the ui matches what we actually request
               const normalized = clampInt(Number(pageSizeInput || 10), 1, 200);
               setPageSizeInput(String(normalized));
             }}
