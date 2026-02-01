@@ -9,7 +9,7 @@ function DepartmentsFallback() {
     <div className="bg-background rounded-lg border p-6">
       <p className="text-muted-foreground text-sm">Loading departments…</p>
     </div>
-  );
+  )
 }
 
 // departments page component
