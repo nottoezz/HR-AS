@@ -1,13 +1,18 @@
 import "dotenv/config";
+import type { Session } from "next-auth";
 import { db } from "@/server/db";
 import { appRouter } from "@/server/api/root";
 
 type Role = "HRADMIN" | "MANAGER" | "EMPLOYEE";
 
+// infer the exact ctx type the router caller expects
+type CallerCtx = Parameters<typeof appRouter.createCaller>[0];
+
 function callerFor(role: Role, employeeId: string | null) {
   // minimal ctx shape used by your routers
   // best practice: keep the shape aligned with createTRPCContext expectations
-  const ctx = {
+  const ctx: CallerCtx = {
+    headers: new Headers(),
     db,
     session: {
       user: {
@@ -15,10 +20,40 @@ function callerFor(role: Role, employeeId: string | null) {
         role,
         employeeId,
       },
-    },
-  } as any;
+    } as unknown as Session,
+  };
 
   return appRouter.createCaller(ctx);
+}
+
+function getErrorCode(e: unknown): string | undefined {
+  if (typeof e !== "object" || e === null) return undefined;
+
+  if ("code" in e && typeof (e as { code?: unknown }).code === "string") {
+    return (e as { code: string }).code;
+  }
+
+  if (
+    "data" in e &&
+    typeof (e as { data?: unknown }).data === "object" &&
+    (e as { data: unknown }).data !== null &&
+    "code" in (e as { data: Record<string, unknown> }).data &&
+    typeof (e as { data: { code?: unknown } }).data.code === "string"
+  ) {
+    return (e as { data: { code: string } }).data.code;
+  }
+
+  return undefined;
+}
+
+function getErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return String(e);
+  }
 }
 
 async function expectBlocked<T>(
@@ -31,10 +66,15 @@ async function expectBlocked<T>(
     throw new Error(
       `expected ${allowedCodes.join(" or ")} but passed: ${label}`,
     );
-  } catch (e: any) {
-    const code = e?.code ?? e?.data?.code;
-    if (!allowedCodes.includes(code)) {
-      console.log("unexpected error:", code, "-", e?.message ?? e);
+  } catch (e: unknown) {
+    const code = getErrorCode(e);
+    if (!code || !allowedCodes.includes(code)) {
+      console.log(
+        "unexpected error:",
+        code ?? "unknown",
+        "-",
+        getErrorMessage(e),
+      );
       throw e;
     }
     console.log(`blocked (${code}): ${label}`);
@@ -121,7 +161,6 @@ async function main() {
   const employeeList = await emp.employees.list();
   await expectPass("employee employees.list", Promise.resolve(employeeList));
   if (!employeeList.items.some((e) => e.id === employeeSelf.id)) {
-
     throw new Error(
       "employee list did not include self; check session employeeId mapping",
     );
@@ -153,7 +192,7 @@ async function main() {
   );
   await expectBlocked(
     "employee update status",
-    emp.employees.update({ id: employeeSelf.id, status: "INACTIVE" as any }),
+    emp.employees.update({ id: employeeSelf.id, status: "INACTIVE" }),
     ["FORBIDDEN"],
   );
 
@@ -205,7 +244,7 @@ async function main() {
     lastName: "Employee",
     telephone: "0123456789",
     email: `smoke+${Date.now()}@test.com`,
-    status: "ACTIVE" as any,
+    status: "ACTIVE",
     managerId: managerEmployeeId,
     departmentIds: allDepts[0] ? [allDepts[0].id] : undefined,
   });
@@ -222,7 +261,7 @@ async function main() {
     "hr update employee admin fields",
     hr.employees.update({
       id: createdEmployeeId,
-      status: "INACTIVE" as any,
+      status: "INACTIVE",
       managerId: null,
       departmentIds: [],
     }),
@@ -238,8 +277,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
-    console.error("smoke test failed:", e);
+  .catch((e: unknown) => {
+    console.error("smoke test failed:", getErrorMessage(e));
     process.exit(1);
   })
   .finally(async () => {
