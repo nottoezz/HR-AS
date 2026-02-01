@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: file:/data/dev.db
+      AUTH_SECRET: "${AUTH_SECRET:-dev-secret-change-in-production}"
+      NEXTAUTH_URL: http://localhost:3000
+    volumes:
+      - sqlite_data:/data
+volumes:
+  sqlite_data:
