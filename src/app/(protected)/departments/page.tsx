@@ -1,5 +1,7 @@
-import { Suspense } from "react"
-import DepartmentsClient from "./DepartmentsClient"
+import { Suspense } from "react";
+import DepartmentsClient from "./DepartmentsClient";
+import DepartmentsHeaderActions from "./DepartmentsHeaderActions";
+import { DepartmentsSelectionProvider } from "./DepartmentsSelectionContext";
 
 // fallback component for departments page
 function DepartmentsFallback() {
@@ -13,14 +15,17 @@ function DepartmentsFallback() {
 // departments page component
 export default function DepartmentsPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Departments</h1>
-      </div>
+    <DepartmentsSelectionProvider>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold">Departments</h1>
+          <DepartmentsHeaderActions />
+        </div>
 
-      <Suspense fallback={<DepartmentsFallback />}>
-        <DepartmentsClient />
-      </Suspense>
-    </div>
-  )
+        <Suspense fallback={<DepartmentsFallback />}>
+          <DepartmentsClient />
+        </Suspense>
+      </div>
+    </DepartmentsSelectionProvider>
+  );
 }

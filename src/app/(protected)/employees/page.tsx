@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import EmployeesClient from "./EmployeesClient";
+import EmployeesHeaderActions from "./EmployeesHeaderActions";
+import { EmployeesSelectionProvider } from "./EmployeesSelectionContext";
 
 // fallback component for employees page
 function EmployeesFallback() {
@@ -13,14 +15,17 @@ function EmployeesFallback() {
 // employees page component
 export default function EmployeesPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Employees</h1>
-      </div>
+    <EmployeesSelectionProvider>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold">Employees</h1>
+          <EmployeesHeaderActions />
+        </div>
 
-      <Suspense fallback={<EmployeesFallback />}>
-        <EmployeesClient />
-      </Suspense>
-    </div>
+        <Suspense fallback={<EmployeesFallback />}>
+          <EmployeesClient />
+        </Suspense>
+      </div>
+    </EmployeesSelectionProvider>
   );
 }

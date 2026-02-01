@@ -120,7 +120,8 @@ async function main() {
   );
   const employeeList = await emp.employees.list();
   await expectPass("employee employees.list", Promise.resolve(employeeList));
-  if (!employeeList.some((e: any) => e.id === employeeSelf.id)) {
+  if (!employeeList.items.some((e) => e.id === employeeSelf.id)) {
+
     throw new Error(
       "employee list did not include self; check session employeeId mapping",
     );
