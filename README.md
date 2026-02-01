@@ -1,45 +1,40 @@
 # HR Administration System
 
-This project is a simple HR Administration System built using the T3 Stack.  
-It provides employee and department management with role-based access control.
+Simple HR admin system built with the T3 stack  
+Employees departments and role based access control
 
-This README focuses only on installing the project, setting up the database, seeding initial data, and running the application.  
-Additional documentation can be added later.
+This README only covers setup seeding and running the app
 
 ---
 
 ## Requirements
 
-- Node.js 18 or newer
+- Node.js 18+
 - npm
-- SQLite (managed automatically by Prisma)
+- Docker optional but recommended
 
 ---
 
-## Tech Stack
+## Tech
 
-- Next.js (App Router)
+- Next.js App Router
 - TypeScript
-- Tailwind CSS
+- Tailwind
 - tRPC
-- Prisma ORM (SQLite)
+- Prisma with SQLite
 - NextAuth
 
 ---
 
-## Installation
+## Setup without Docker
 
-Install project dependencies:
+Install deps
 
 ```bash
 npm install
 ```
 
----
-
-## Environment Setup
-
-Create a `.env` file in the project root with the following values:
+Create `.env`
 
 ```env
 DATABASE_URL="file:./db.sqlite"
@@ -47,64 +42,56 @@ NEXTAUTH_SECRET="your-secret"
 NEXTAUTH_URL="http://localhost:3000"
 ```
 
----
-
-## Database Setup
-
-This project uses Prisma with SQLite.
-
-### Run Migrations
-
-Run the initial database migrations:
+Run database and seed
 
 ```bash
 npx prisma migrate dev
-```
-
-This will:
-
-- Create the SQLite database
-- Apply all Prisma migrations
-
----
-
-## Database Seeding
-
-A Prisma seed script is included to create an initial HR Administrator account.
-
-### Seeded Admin Account
-
-- Email: `hradmin@test.com`
-- Password: `TestPass1234`
-- Role: HR Administrator
-
-Run the seed script after migrations:
-
-```bash
 npx prisma db seed
 ```
 
----
-
-## Running the Application
-
-Start the development server:
+Start dev server
 
 ```bash
 npm run dev
 ```
 
-The application will be available at:
-
-```
+App runs at  
 http://localhost:3000
+
+---
+
+## Default admin account
+
+Created by the seed script
+
+- email `hradmin@test.com`
+- password `TestPass1234`
+- role HR admin
+
+---
+
+## Setup with Docker
+
+Build and run
+
+```bash
+docker compose up --build
+```
+
+App runs at  
+http://localhost:3000
+
+SQLite database is stored inside the container
+
+Stop containers
+
+```bash
+docker compose down
 ```
 
 ---
 
-## Prisma Studio (Optional)
-
-To inspect and manage the database using Prisma Studio:
+## Prisma Studio optional
 
 ```bash
 npx prisma studio
