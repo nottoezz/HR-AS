@@ -2,7 +2,10 @@
 
 import * as React from "react";
 import { api } from "@/trpc/react";
+import { useSearchParams } from "next/navigation";
 import { useDepartmentsSelection } from "./DepartmentsSelectionContext";
+import DepartmentsFilterBar from "./DepartmentsFilterBar";
+import { filtersFromSearchParams } from "./DepartmentFilters";
 
 // client table for departments
 // server sorted paginated list with optimistic status toggle
@@ -39,6 +42,18 @@ export default function DepartmentsClient() {
   // selected row lives in context so header actions can use it
   const { selectedId, setSelectedId } = useDepartmentsSelection();
 
+  // url state for filters (filter bar writes to these params)
+  const sp = useSearchParams();
+  const filters = React.useMemo(() => {
+    const raw = filtersFromSearchParams(sp);
+    if (!raw) return undefined;
+    // API expects status as array
+    return {
+      ...raw,
+      status: raw.status ? [raw.status] : undefined,
+    };
+  }, [sp]);
+
   // trpc cache helpers for optimistic updates
   const utils = api.useUtils();
 
@@ -68,8 +83,8 @@ export default function DepartmentsClient() {
 
   // stable query input so react query caching behaves
   const listInput = React.useMemo(
-    () => ({ sort, page, pageSize }),
-    [sort, page, pageSize],
+    () => ({ sort, page, pageSize, filters }),
+    [sort, page, pageSize, filters],
   );
 
   // departments list
@@ -301,7 +316,9 @@ export default function DepartmentsClient() {
   }
 
   return (
-    <section className="bg-background overflow-hidden rounded-lg border">
+    <>
+      <DepartmentsFilterBar />
+      <section className="bg-background overflow-hidden rounded-lg border">
       {/* we keep old data on screen but tell the user the refresh failed */}
       {q.isError && (
         <div className="border-destructive/40 bg-destructive/10 border-b px-6 py-3">
@@ -514,5 +531,6 @@ export default function DepartmentsClient() {
         </div>
       </div>
     </section>
+    </>
   );
 }
