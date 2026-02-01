@@ -52,6 +52,11 @@ type ListSort = NonNullable<ListInput>["sort"];
 
 const idInputSchema = z.object({ id: z.string() });
 
+const setStatusInputSchema = z.object({
+  id: z.string(),
+  status: departmentStatusSchema,
+});
+
 const createInputSchema = z.object({
   name: z.string().min(1),
   status: departmentStatusSchema.default("ACTIVE"),
@@ -395,6 +400,29 @@ export const departmentsRouter = createTRPCRouter({
       const dept = await ctx.db.department.update({
         where: { id: input.id },
         data: { status: "INACTIVE" },
+        select: { id: true, name: true, status: true },
+      });
+
+      return dept;
+    }),
+
+  // set status (hradmin only) — for optimistic toggle
+  setStatus: protectedProcedure
+    .input(setStatusInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const sessionUser = getSessionUser(ctx);
+      assertHRAdmin(sessionUser.role);
+
+      const baseWhere = await buildAccessWhere(ctx);
+      const existing = await ctx.db.department.findFirst({
+        where: { AND: [baseWhere, { id: input.id }] },
+        select: { id: true },
+      });
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const dept = await ctx.db.department.update({
+        where: { id: input.id },
+        data: { status: input.status },
         select: { id: true, name: true, status: true },
       });
 
