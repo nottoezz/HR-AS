@@ -7,7 +7,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 function humanizeAuthError(code: string | null) {
   if (!code) return null;
 
-  // map next auth error codes to user friendly messages
   switch (code) {
     case "CredentialsSignin":
       return "Invalid email or password.";
@@ -20,15 +19,20 @@ function humanizeAuthError(code: string | null) {
   }
 }
 
-// login page component
 export default function LoginPage() {
   const router = useRouter();
+
+  // read query params from the url
+  // used for callback redirect and auth errors
   const searchParams = useSearchParams();
-  
+
+  // where to send the user after login
+  // fallback keeps things safe if param is missing
   const callbackUrl = useMemo(() => {
     return searchParams.get("callbackUrl") ?? "/employees";
   }, [searchParams]);
 
+  // map nextauth error codes from the url to human text
   const urlError = useMemo(() => {
     return humanizeAuthError(searchParams.get("error"));
   }, [searchParams]);
@@ -44,7 +48,6 @@ export default function LoginPage() {
     setFormError(null);
     setSubmitting(true);
 
-    // sign in with credentials
     try {
       const res = await signIn("credentials", {
         email,
@@ -72,73 +75,72 @@ export default function LoginPage() {
     }
   }
 
+  // prefer local form error but fall back to url error
   const showError = formError ?? urlError;
 
-  // main login form component
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-      <div className="bg-background w-full max-w-sm rounded-lg border p-6 shadow-sm">
-        {/* Header */}
+    <div className="ui-page">
+      <div className="ui-shell ui-fade-in">
+        {/* top brand */}
         <div className="mb-6 text-center">
-          <h1 className="text-3xl font-extrabold">HR Admin</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Sign in to your account
-          </p>
+          <div className="ui-logo-box">
+            <div className="ui-logo-icon" />
+          </div>
+
+          <h1 className="ui-title">HR Admin</h1>
+          <p className="ui-muted mt-1">Sign in to continue</p>
         </div>
 
-        {/* Error */}
-        {showError ? (
-          <div className="border-destructive/40 bg-destructive/10 text-destructive mb-4 rounded-md border px-3 py-2 text-sm">
-            {showError}
-          </div>
-        ) : null}
+        <div className="ui-card">
+          {showError ? (
+            <div className="ui-alert-error mb-4">{showError}</div>
+          ) : null}
 
-        {/* Form */}
-        <form className="space-y-4" onSubmit={onSubmit}>
-          <div className="space-y-1">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              placeholder="hradmin@test.com"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+          <form className="space-y-4" onSubmit={onSubmit}>
+            <div className="space-y-1">
+              <label htmlFor="email" className="ui-label">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                placeholder="hradmin@test.com"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="ui-input"
+                disabled={submitting}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="password" className="ui-label">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                placeholder="Your password"
+                autoComplete="current-password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="ui-input"
+                disabled={submitting}
+              />
+            </div>
+
+            <button
+              type="submit"
               disabled={submitting}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="password" className="text-sm font-medium">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              placeholder="TestPass1234"
-              autoComplete="current-password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              disabled={submitting}
-            />
-          </div>
-
-          {/* Submit button */}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="border-primary/70 bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary w-full rounded-md border px-4 py-2 text-sm font-medium shadow-sm hover:shadow focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-60"
-          >
-            {submitting ? "Logging in…" : "Login"}
-          </button>
-        </form>
+              className="ui-btn ui-btn-primary"
+            >
+              {submitting ? "Logging in…" : "Login"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
