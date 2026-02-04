@@ -37,8 +37,8 @@ function clampInt(n: number, min: number, max: number) {
 // status pill styling
 function statusPillClass(s: Status) {
   return s === "ACTIVE"
-    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-    : "border-muted bg-muted/40 text-muted-foreground";
+    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
+    : "border-[rgb(var(--border))] bg-[rgb(var(--surface-2))] text-slate-700";
 }
 
 // small helpers for reading url params
@@ -70,9 +70,7 @@ export default function EmployeesClient() {
 
     const statusCsv = splitCsv(sp.get("status"));
     const status = statusCsv.length
-      ? statusCsv.filter(
-          (s): s is Status => s === "ACTIVE" || s === "INACTIVE",
-        )
+      ? statusCsv.filter((s): s is Status => s === "ACTIVE" || s === "INACTIVE")
       : undefined;
 
     const departmentIds = splitCsv(sp.get("departmentIds"));
@@ -198,7 +196,7 @@ export default function EmployeesClient() {
         aria-hidden="true"
         className={cx(
           "ml-1 inline-block text-[10px] leading-none",
-          active ? "text-foreground" : "text-muted-foreground/70",
+          active ? "text-slate-900" : "text-slate-500",
         )}
       >
         {active ? (dir === "asc" ? "▲" : "▼") : "↕"}
@@ -218,8 +216,10 @@ export default function EmployeesClient() {
           role="columnheader"
           onClick={() => toggleSort(field)}
           className={cx(
-            "inline-flex items-center rounded-sm outline-none",
-            "hover:text-foreground focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2",
+            "inline-flex items-center rounded-md px-1 py-0.5 transition outline-none",
+            "hover:bg-[rgb(var(--surface-2))] hover:text-slate-900",
+            "focus-visible:ring-2 focus-visible:ring-offset-2",
+            "focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-[rgb(var(--background))]",
           )}
           aria-sort={
             active
@@ -340,14 +340,15 @@ export default function EmployeesClient() {
   // initial skeleton
   if (isInitialLoading) {
     return (
-      <section className="bg-background rounded-lg border">
-        <div className="border-b px-6 py-4">
-          <div className="bg-muted h-4 w-40 animate-pulse rounded" />
-          <div className="bg-muted mt-2 h-3 w-72 animate-pulse rounded" />
+      <section className="ui-card ui-fade-in">
+        {/* header */}
+        <div className="mb-4">
+          <div className="h-4 w-40 animate-pulse rounded bg-[rgb(var(--surface-2))]" />
+          <div className="mt-2 h-3 w-72 animate-pulse rounded bg-[rgb(var(--surface-2))]" />
         </div>
-        <div className="text-muted-foreground p-6 text-sm">
-          Loading employees…
-        </div>
+
+        {/* body */}
+        <div className="text-sm text-slate-600">Loading employees…</div>
       </section>
     );
   }
@@ -355,20 +356,19 @@ export default function EmployeesClient() {
   return (
     <>
       <EmployeesFilterBar />
-      <section className="bg-background overflow-hidden rounded-lg border">
-        {/* we keep old data on screen but tell the user the refresh failed */}
+
+      <section className="ui-card ui-fade-in overflow-hidden p-0">
+        {/* fetch error */}
         {q.isError && (
-          <div className="border-destructive/40 bg-destructive/10 border-b px-6 py-3">
-            <p className="text-destructive text-xs">
-              Unable to refresh employees; showing the last loaded results.
-            </p>
+          <div className="ui-alert-error rounded-none border-0 border-b">
+            Unable to refresh employees; showing the last loaded results.
           </div>
         )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted/40 border-b text-left">
-              <tr className="[&>th]:px-6 [&>th]:py-3 [&>th]:font-medium">
+            <thead className="border-b bg-[rgb(var(--surface-2))] text-left">
+              <tr className="[&>th]:px-6 [&>th]:py-3 [&>th]:font-semibold">
                 <th>
                   <ThButton label="Name" field="lastName" />
                 </th>
@@ -390,14 +390,11 @@ export default function EmployeesClient() {
               </tr>
             </thead>
 
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-[rgb(var(--border))]">
               {/* empty state */}
               {items.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="text-muted-foreground px-6 py-6 text-sm"
-                  >
+                  <td colSpan={6} className="px-6 py-10 text-sm text-slate-600">
                     No employees found.
                   </td>
                 </tr>
@@ -438,14 +435,16 @@ export default function EmployeesClient() {
                       aria-selected={isSelected}
                       className={cx(
                         "transition-colors [&>td]:px-6 [&>td]:py-3",
-                        canSelectRow ? "hover:bg-muted/30 cursor-pointer" : "",
-                        isSelected && "bg-red-500/10",
+                        canSelectRow
+                          ? "cursor-pointer hover:bg-black/[0.02]"
+                          : "",
+                        isSelected && "bg-[rgba(99,102,241,0.08)]",
                         canSelectRow &&
-                          "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+                          "focus-visible:ring-2 focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--background))] focus-visible:outline-none",
                       )}
                     >
-                      <td className="font-medium">{name}</td>
-                      <td className="text-muted-foreground">{e.email}</td>
+                      <td className="font-semibold text-slate-900">{name}</td>
+                      <td className="text-slate-600">{e.email}</td>
 
                       <td>
                         <button
@@ -459,11 +458,12 @@ export default function EmployeesClient() {
                           className={cx(
                             "inline-flex items-center justify-between",
                             "min-w-[7.5rem] gap-2",
-                            "rounded-md border px-2 py-0.5 text-xs font-medium",
+                            "rounded-xl border px-2.5 py-1 text-xs font-semibold",
+                            "transition focus-visible:ring-2 focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--background))] focus-visible:outline-none",
                             statusPillClass(effectiveStatus),
-                            isHRAdmin &&
-                              "hover:bg-muted/40 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-                            !isHRAdmin && "cursor-default",
+                            isHRAdmin
+                              ? "hover:shadow-[var(--shadow-1)]"
+                              : "cursor-default",
                             statusBusy && "cursor-not-allowed opacity-70",
                           )}
                           aria-label={`Status for ${name}`}
@@ -479,13 +479,12 @@ export default function EmployeesClient() {
                           <span className="tabular-nums">
                             {effectiveStatus}
                           </span>
-                          {/* tiny busy dot so the user sees something happening */}
                           <span
                             aria-hidden="true"
                             className={cx(
                               "h-2 w-2 rounded-full",
                               statusBusy
-                                ? "bg-muted animate-pulse"
+                                ? "animate-pulse bg-slate-300"
                                 : "bg-transparent",
                             )}
                           />
@@ -493,17 +492,17 @@ export default function EmployeesClient() {
 
                         {/* row level failure message so we do not break the whole table */}
                         {showRowError && (
-                          <div className="text-destructive mt-1 text-[11px]">
+                          <div className="mt-1 text-[11px] text-[rgb(var(--danger))]">
                             failed to update status
                           </div>
                         )}
                       </td>
 
-                      <td className="text-muted-foreground">{managerName}</td>
-                      <td className="text-right tabular-nums">
+                      <td className="text-slate-600">{managerName}</td>
+                      <td className="text-right text-slate-700 tabular-nums">
                         {e._count.departments}
                       </td>
-                      <td className="text-right tabular-nums">
+                      <td className="text-right text-slate-700 tabular-nums">
                         {e._count.directReports}
                       </td>
                     </tr>
@@ -515,9 +514,9 @@ export default function EmployeesClient() {
         </div>
 
         {/* pagination bar */}
-        <div className="relative flex items-center border-t px-6 py-3 text-sm">
+        <div className="relative flex items-center border-t border-[rgb(var(--border))] px-6 py-4 text-sm">
           {/* left side page indicator with editable input */}
-          <div className="text-muted-foreground flex items-center gap-1 text-xs">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
             <span>Page</span>
             <input
               inputMode="numeric"
@@ -528,10 +527,10 @@ export default function EmployeesClient() {
               }}
               onBlur={commitPageInput}
               className={cx(
-                "text-foreground bg-transparent tabular-nums",
-                "w-[2.5ch] text-center",
-                "outline-none",
-                "focus-visible:border-foreground/40 focus-visible:border-b",
+                "h-9 w-12 rounded-xl border px-2 text-center text-sm tabular-nums",
+                "border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-slate-900 shadow-[var(--shadow-1)]",
+                "transition outline-none",
+                "focus-visible:ring-2 focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--background))]",
               )}
               aria-label="Current page"
             />
@@ -545,8 +544,11 @@ export default function EmployeesClient() {
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
               className={cx(
-                "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-                "disabled:cursor-not-allowed disabled:opacity-50",
+                "h-9 rounded-xl border px-3 text-sm font-semibold transition",
+                "border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-slate-900 shadow-[var(--shadow-1)]",
+                "hover:-translate-y-[1px] hover:shadow-[var(--shadow-2)]",
+                "disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-[var(--shadow-1)]",
+                "focus-visible:ring-2 focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--background))] focus-visible:outline-none",
               )}
             >
               Prev
@@ -557,8 +559,11 @@ export default function EmployeesClient() {
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
               className={cx(
-                "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-                "disabled:cursor-not-allowed disabled:opacity-50",
+                "h-9 rounded-xl border px-3 text-sm font-semibold transition",
+                "border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-slate-900 shadow-[var(--shadow-1)]",
+                "hover:-translate-y-[1px] hover:shadow-[var(--shadow-2)]",
+                "disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-[var(--shadow-1)]",
+                "focus-visible:ring-2 focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--background))] focus-visible:outline-none",
               )}
             >
               Next
@@ -567,7 +572,7 @@ export default function EmployeesClient() {
 
           {/* right side page size input */}
           <div className="ml-auto flex items-center gap-2">
-            <label className="text-muted-foreground text-xs" htmlFor="pageSize">
+            <label className="text-xs text-slate-600" htmlFor="pageSize">
               Per page
             </label>
             <input
@@ -584,7 +589,12 @@ export default function EmployeesClient() {
                 );
                 setPageSizeInput(String(normalized));
               }}
-              className="bg-background focus-visible:ring-ring h-9 w-11 rounded-md border px-2 text-sm outline-none focus-visible:ring-2"
+              className={cx(
+                "h-9 w-16 rounded-xl border px-2 text-sm tabular-nums",
+                "border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-slate-900 shadow-[var(--shadow-1)]",
+                "transition outline-none",
+                "focus-visible:ring-2 focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--background))]",
+              )}
               aria-label="Employees per page"
             />
           </div>
