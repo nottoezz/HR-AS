@@ -16,9 +16,8 @@ function EmployeesFallback() {
 export default function EmployeesPage() {
   return (
     <EmployeesSelectionProvider>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Employees</h1>
+      <div className="space-y-4">
+        <div className="flex items-center justify-end right-0">
           <EmployeesHeaderActions />
         </div>
 
