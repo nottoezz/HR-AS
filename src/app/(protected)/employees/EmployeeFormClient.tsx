@@ -51,8 +51,7 @@ export default function EmployeeFormClient(props: Props) {
   const myEmployeeId = meQ.data?.employeeId ?? null;
   const isHRAdmin = myRole === "HRADMIN";
 
-  const isSelfEdit =
-    isEdit && Boolean(myEmployeeId) && myEmployeeId === editId;
+  const isSelfEdit = isEdit && Boolean(myEmployeeId) && myEmployeeId === editId;
 
   // non-hr admins can only edit themselves
   const canOpenThisForm =
@@ -66,14 +65,30 @@ export default function EmployeeFormClient(props: Props) {
 
   // manager picker options (hradmin only UI, but query is cheap)
   const managersQ = api.employees.list.useQuery(
-    { sort: { field: "lastName", direction: "asc" as const }, page: 1, pageSize: 200 },
-    { staleTime: 60_000, refetchOnWindowFocus: false, enabled: Boolean(isHRAdmin) },
+    {
+      sort: { field: "lastName", direction: "asc" as const },
+      page: 1,
+      pageSize: 200,
+    },
+    {
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      enabled: Boolean(isHRAdmin),
+    },
   );
 
   // departments picker options (hradmin only UI)
   const departmentsQ = api.departments.list.useQuery(
-    { sort: { field: "name", direction: "asc" as const }, page: 1, pageSize: 200 },
-    { staleTime: 60_000, refetchOnWindowFocus: false, enabled: Boolean(isHRAdmin) },
+    {
+      sort: { field: "name", direction: "asc" as const },
+      page: 1,
+      pageSize: 200,
+    },
+    {
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      enabled: Boolean(isHRAdmin),
+    },
   );
 
   const createM = api.employees.create.useMutation();
@@ -306,7 +321,9 @@ export default function EmployeeFormClient(props: Props) {
         ...basePayload,
         status: values.status,
         managerId: values.managerId?.trim() ? values.managerId : undefined,
-        departmentIds: values.departmentIds.length ? values.departmentIds : undefined,
+        departmentIds: values.departmentIds.length
+          ? values.departmentIds
+          : undefined,
       });
     }
 
@@ -316,66 +333,84 @@ export default function EmployeeFormClient(props: Props) {
   }
 
   // loading gate
-  if (meQ.isLoading) return <div className="text-sm">Loading…</div>;
+  if (meQ.isLoading) return <div className="ui-muted">Loading…</div>;
 
   // forbid non-admin viewing/editing other employees
   if (!canOpenThisForm) {
     return (
-      <div className="rounded-md border p-4 text-sm">
-        You can only edit your own profile.
-      </div>
+      <div className="ui-alert-error">You can only edit your own profile.</div>
     );
   }
 
   if (isEdit && employeeQ.isLoading) {
-    return <div className="text-sm">Loading employee…</div>;
+    return <div className="ui-muted">Loading employee…</div>;
   }
 
   const showHRFields = isHRAdmin;
 
   return (
     <>
-      <form onSubmit={onSubmit} className="max-w-lg space-y-4">
-        <input
-          value={values.firstName}
-          onChange={(e) =>
-            setValues((v) => ({ ...v, firstName: e.target.value }))
-          }
-          placeholder="First name"
-          className="h-10 w-full rounded-md border px-3"
-        />
+      <form
+        onSubmit={onSubmit}
+        className="ui-card ui-fade-in max-w-lg space-y-4"
+      >
+        {/* basics */}
+        <div className="space-y-3">
+          <label className="space-y-1">
+            <div className="ui-label">first name</div>
+            <input
+              value={values.firstName}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, firstName: e.target.value }))
+              }
+              placeholder="First name"
+              className="ui-input"
+            />
+          </label>
 
-        <input
-          value={values.lastName}
-          onChange={(e) =>
-            setValues((v) => ({ ...v, lastName: e.target.value }))
-          }
-          placeholder="Last name"
-          className="h-10 w-full rounded-md border px-3"
-        />
+          <label className="space-y-1">
+            <div className="ui-label">last name</div>
+            <input
+              value={values.lastName}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, lastName: e.target.value }))
+              }
+              placeholder="Last name"
+              className="ui-input"
+            />
+          </label>
 
-        <input
-          value={values.email}
-          onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
-          placeholder="Email"
-          className="h-10 w-full rounded-md border px-3"
-          disabled={isEdit && showHRFields} // hradmin edit keeps email locked (your original rule)
-        />
+          <label className="space-y-1">
+            <div className="ui-label">email</div>
+            <input
+              value={values.email}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, email: e.target.value }))
+              }
+              placeholder="Email"
+              className="ui-input"
+              disabled={isEdit && showHRFields} // hradmin edit keeps email locked (your original rule)
+            />
+          </label>
 
-        <input
-          value={values.telephone}
-          onChange={(e) =>
-            setValues((v) => ({ ...v, telephone: e.target.value }))
-          }
-          placeholder="Telephone"
-          className="h-10 w-full rounded-md border px-3"
-        />
+          <label className="space-y-1">
+            <div className="ui-label">telephone</div>
+            <input
+              value={values.telephone}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, telephone: e.target.value }))
+              }
+              placeholder="Telephone"
+              className="ui-input"
+            />
+          </label>
+        </div>
 
         {/* hradmin only fields */}
         {showHRFields && isEdit && (
           <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="status">
-              Status
+            <label className="ui-label" htmlFor="status">
+              status
             </label>
             <select
               id="status"
@@ -383,7 +418,7 @@ export default function EmployeeFormClient(props: Props) {
               onChange={(e) =>
                 setValues((v) => ({ ...v, status: e.target.value as Status }))
               }
-              className="bg-background h-10 w-full rounded-md border px-3 text-sm"
+              className={cx("ui-input", "h-11")}
             >
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
@@ -393,12 +428,13 @@ export default function EmployeeFormClient(props: Props) {
 
         {showHRFields && (
           <div className="space-y-2">
-            <label className="text-sm font-medium">Departments</label>
+            <div className="ui-label">departments</div>
 
             <div
               className={cx(
-                "flex items-center justify-between gap-3 rounded-md border px-3 py-2",
-                "hover:bg-muted/20 cursor-pointer",
+                "flex items-center justify-between gap-3 rounded-xl border p-3",
+                "border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-[var(--shadow-1)]",
+                "cursor-pointer transition hover:bg-[rgb(var(--surface-2))]",
               )}
               onClick={() => {
                 if (departmentsQ.isError || departmentsQ.isLoading) return;
@@ -416,10 +452,7 @@ export default function EmployeeFormClient(props: Props) {
               aria-label="Select departments"
             >
               <div className="min-w-0">
-                <div className="text-sm">{selectedDeptLabel}</div>
-                <div className="text-muted-foreground text-xs">
-                  {values.departmentIds.length ? "Selected" : "None"}
-                </div>
+                <div className="text-sm font-semibold">{selectedDeptLabel}</div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -430,8 +463,10 @@ export default function EmployeeFormClient(props: Props) {
                     clearDepts();
                   }}
                   className={cx(
-                    "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-                    "disabled:cursor-not-allowed disabled:opacity-50",
+                    "ui-btn w-auto px-3.5 py-2",
+                    "border border-[rgb(var(--border))] bg-[rgb(var(--surface))]",
+                    "hover:shadow-[var(--shadow-1)]",
+                    "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none",
                   )}
                   disabled={departmentsQ.isLoading || departmentsQ.isError}
                   title="Clear departments"
@@ -445,10 +480,7 @@ export default function EmployeeFormClient(props: Props) {
                     e.stopPropagation();
                     openDeptModal();
                   }}
-                  className={cx(
-                    "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-                    "disabled:cursor-not-allowed disabled:opacity-50",
-                  )}
+                  className={cx("ui-btn ui-btn-primary w-auto px-3.5 py-2")}
                   disabled={departmentsQ.isLoading || departmentsQ.isError}
                 >
                   Change
@@ -457,7 +489,7 @@ export default function EmployeeFormClient(props: Props) {
             </div>
 
             {departmentsQ.isError && (
-              <p className="text-destructive text-xs">
+              <p className="text-xs text-[rgb(var(--danger))]">
                 Unable to load departments for selection.
               </p>
             )}
@@ -466,12 +498,13 @@ export default function EmployeeFormClient(props: Props) {
 
         {showHRFields && (
           <div className="space-y-2">
-            <label className="text-sm font-medium">Manager</label>
+            <div className="ui-label">manager</div>
 
             <div
               className={cx(
-                "flex items-center justify-between gap-3 rounded-md border px-3 py-2",
-                "hover:bg-muted/20 cursor-pointer",
+                "flex items-center justify-between gap-3 rounded-xl border p-3",
+                "border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-[var(--shadow-1)]",
+                "cursor-pointer transition hover:bg-[rgb(var(--surface-2))]",
               )}
               onClick={() => {
                 if (managersQ.isError || managersQ.isLoading) return;
@@ -489,9 +522,8 @@ export default function EmployeeFormClient(props: Props) {
               aria-label="Select manager"
             >
               <div className="min-w-0">
-                <div className="text-sm">{selectedManagerLabel}</div>
-                <div className="text-muted-foreground text-xs">
-                  {values.managerId ? "Selected" : "None"}
+                <div className="text-sm font-semibold">
+                  {selectedManagerLabel}
                 </div>
               </div>
 
@@ -503,8 +535,10 @@ export default function EmployeeFormClient(props: Props) {
                     pickManager(null);
                   }}
                   className={cx(
-                    "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-                    "disabled:cursor-not-allowed disabled:opacity-50",
+                    "ui-btn w-auto px-3.5 py-2",
+                    "border border-[rgb(var(--border))] bg-[rgb(var(--surface))]",
+                    "hover:shadow-[var(--shadow-1)]",
+                    "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none",
                   )}
                   disabled={managersQ.isLoading || managersQ.isError}
                   title="Clear manager"
@@ -518,10 +552,7 @@ export default function EmployeeFormClient(props: Props) {
                     e.stopPropagation();
                     openManagerModal();
                   }}
-                  className={cx(
-                    "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-                    "disabled:cursor-not-allowed disabled:opacity-50",
-                  )}
+                  className={cx("ui-btn ui-btn-primary w-auto px-3.5 py-2")}
                   disabled={managersQ.isLoading || managersQ.isError}
                 >
                   Change
@@ -530,16 +561,17 @@ export default function EmployeeFormClient(props: Props) {
             </div>
 
             {managersQ.isError && (
-              <p className="text-destructive text-xs">
+              <p className="text-xs text-[rgb(var(--danger))]">
                 Unable to load employees for manager selection.
               </p>
             )}
           </div>
         )}
 
+        {/* submit */}
         <button
           type="submit"
-          className="h-10 rounded-md border px-4 text-sm"
+          className={cx("ui-btn ui-btn-primary")}
           disabled={isSubmitting}
         >
           {isEdit ? "Save changes" : "Create employee"}
@@ -561,27 +593,14 @@ export default function EmployeeFormClient(props: Props) {
             onClick={() => setDeptModalOpen(false)}
           />
 
-          <div
-            className={cx(
-              "fixed top-20 left-1/2 -translate-x-1/2",
-              "w-[92vw] max-w-md",
-              "bg-white text-black",
-              "rounded-lg border shadow-xl",
-            )}
-          >
-            <div className="space-y-3 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium">Select departments</div>
-                  <div className="text-xs text-gray-500">
-                    type to filter, click to toggle
-                  </div>
-                </div>
-
+          <div className="fixed top-20 left-1/2 w-[92vw] max-w-md -translate-x-1/2">
+            <div className="ui-card ui-fade-in">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold">Select departments</div>
                 <button
                   type="button"
                   onClick={() => setDeptModalOpen(false)}
-                  className="h-8 rounded-md border px-3 text-xs hover:bg-gray-100"
+                  className="ui-btn w-auto px-3.5 py-2"
                 >
                   Close
                 </button>
@@ -592,21 +611,11 @@ export default function EmployeeFormClient(props: Props) {
                 value={deptQuery}
                 onChange={(e) => setDeptQuery(e.target.value)}
                 placeholder="Start typing…"
-                className="h-10 w-full rounded-md border px-3 text-sm"
+                className="ui-input"
                 disabled={departmentsQ.isLoading}
               />
 
-              <div className="text-xs text-gray-500">
-                {departmentsQ.isLoading
-                  ? "Loading departments…"
-                  : departmentsQ.isError
-                    ? "Cannot load departments."
-                    : deptQuery.trim()
-                      ? `Top matches: ${deptMatches.length}`
-                      : "Tip: click items to select."}
-              </div>
-
-              <div className="max-h-56 space-y-1 overflow-y-auto pt-1">
+              <div className="mt-3 max-h-56 space-y-1 overflow-y-auto">
                 {!departmentsQ.isLoading &&
                   !departmentsQ.isError &&
                   (deptQuery.trim() ? deptMatches : allDepts).map((d) => {
@@ -617,15 +626,19 @@ export default function EmployeeFormClient(props: Props) {
                         type="button"
                         onClick={() => toggleDept(d.id)}
                         className={cx(
-                          "w-full rounded-md border px-3 py-2 text-left text-sm",
-                          "hover:bg-gray-100",
-                          checked && "bg-gray-50",
+                          "w-full rounded-xl border px-3 py-2 text-left text-sm transition",
+                          "border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-[var(--shadow-1)]",
+                          "hover:bg-[rgb(var(--surface-2))]",
+                          checked &&
+                            "border-[rgb(var(--ring))] bg-[rgba(99,102,241,0.08)]",
                         )}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="truncate">{d.name}</span>
-                          <span className="text-xs text-gray-500">
-                            {checked ? "Selected" : ""}
+                          <span className="truncate font-semibold">
+                            {d.name}
+                          </span>
+                          <span className="text-xs opacity-60">
+                            {checked ? "selected" : ""}
                           </span>
                         </div>
                       </button>
@@ -652,27 +665,14 @@ export default function EmployeeFormClient(props: Props) {
             onClick={() => setManagerModalOpen(false)}
           />
 
-          <div
-            className={cx(
-              "fixed top-20 left-1/2 -translate-x-1/2",
-              "w-[92vw] max-w-md",
-              "bg-white text-black",
-              "rounded-lg border shadow-xl",
-            )}
-          >
-            <div className="space-y-3 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium">Select manager</div>
-                  <div className="text-xs text-gray-500">
-                    type a name or email, press enter to select
-                  </div>
-                </div>
-
+          <div className="fixed top-20 left-1/2 w-[92vw] max-w-md -translate-x-1/2">
+            <div className="ui-card ui-fade-in">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold">Select manager</div>
                 <button
                   type="button"
                   onClick={() => setManagerModalOpen(false)}
-                  className="h-8 rounded-md border px-3 text-xs hover:bg-gray-100"
+                  className="ui-btn w-auto px-3.5 py-2"
                 >
                   Close
                 </button>
@@ -689,27 +689,17 @@ export default function EmployeeFormClient(props: Props) {
                   }
                 }}
                 placeholder="Start typing…"
-                className="h-10 w-full rounded-md border px-3 text-sm"
+                className="ui-input"
                 disabled={managersQ.isLoading}
               />
 
-              <div className="text-xs text-gray-500">
-                {managersQ.isLoading
-                  ? "Loading employees…"
-                  : managersQ.isError
-                    ? "Cannot load employees."
-                    : managerQuery.trim()
-                      ? `Top matches: ${managerMatches.length}`
-                      : "Tip: type an email for exact match."}
-              </div>
-
-              <div className="max-h-48 space-y-1 overflow-y-auto pt-1">
+              <div className="mt-3 max-h-48 space-y-1 overflow-y-auto">
                 {!managersQ.isLoading &&
                   !managersQ.isError &&
                   managerQuery.trim() && (
                     <>
                       {managerMatches.length === 0 ? (
-                        <div className="rounded-md border px-3 py-2 text-sm text-gray-500">
+                        <div className="rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-3 text-sm text-slate-600 shadow-[var(--shadow-1)]">
                           No matches
                         </div>
                       ) : (
@@ -725,14 +715,18 @@ export default function EmployeeFormClient(props: Props) {
                               type="button"
                               onClick={() => pickManager(m.id)}
                               className={cx(
-                                "w-full rounded-md border px-3 py-2 text-left text-sm",
-                                "hover:bg-gray-100",
-                                values.managerId === m.id && "bg-gray-50",
+                                "w-full rounded-xl border px-3 py-2 text-left text-sm transition",
+                                "border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-[var(--shadow-1)]",
+                                "hover:bg-[rgb(var(--surface-2))]",
+                                values.managerId === m.id &&
+                                  "border-[rgb(var(--ring))] bg-[rgba(99,102,241,0.08)]",
                               )}
                             >
-                              <div className="truncate">{label}</div>
+                              <div className="truncate font-semibold">
+                                {label}
+                              </div>
                               {m.email ? (
-                                <div className="truncate text-xs text-gray-500">
+                                <div className="truncate text-xs opacity-60">
                                   {m.email}
                                 </div>
                               ) : null}
