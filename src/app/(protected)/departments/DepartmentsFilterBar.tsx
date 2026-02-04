@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/trpc/react";
 import { withFilterParam } from "./DepartmentFilters";
@@ -106,23 +107,24 @@ export default function DepartmentsFilterBar() {
     !!sp.get("name") || !!sp.get("status") || !!sp.get("managerId");
 
   return (
-    <div className="relative rounded-lg border bg-background">
+    <div className="ui-card ui-fade-in relative p-0">
+      {/* inputs */}
       <div className="p-4 pb-14">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-3">
             {/* name filter */}
             <label className="space-y-1">
-              <div className="text-xs text-muted-foreground">name</div>
+              <div className="ui-label">name</div>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none"
+                className="ui-input h-9"
                 placeholder="search..."
               />
             </label>
           </div>
 
-          {/* status + manager controls (same layout as employees) */}
+          {/* status + manager controls */}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -130,8 +132,11 @@ export default function DepartmentsFilterBar() {
                 setStatus(selectedStatus === "ACTIVE" ? undefined : "ACTIVE")
               }
               className={cx(
-                "h-9 rounded-md border px-3 text-sm",
-                selectedStatus === "ACTIVE" && "bg-emerald-500/10",
+                "ui-btn w-auto px-3.5 py-2",
+                "border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-slate-900",
+                "hover:shadow-[var(--shadow-1)]",
+                selectedStatus === "ACTIVE" &&
+                  "border-emerald-500/30 bg-emerald-500/10",
               )}
             >
               active
@@ -145,8 +150,11 @@ export default function DepartmentsFilterBar() {
                 )
               }
               className={cx(
-                "h-9 rounded-md border px-3 text-sm",
-                selectedStatus === "INACTIVE" && "bg-amber-500/10",
+                "ui-btn w-auto px-3.5 py-2",
+                "border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-slate-900",
+                "hover:shadow-[var(--shadow-1)]",
+                selectedStatus === "INACTIVE" &&
+                  "border-amber-500/30 bg-amber-500/10",
               )}
             >
               inactive
@@ -156,8 +164,10 @@ export default function DepartmentsFilterBar() {
               type="button"
               onClick={() => setManagerOpen(true)}
               className={cx(
-                "h-9 rounded-md border px-3 text-sm",
-                managerId && "bg-sky-500/10",
+                "ui-btn w-auto px-3.5 py-2",
+                "border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-slate-900",
+                "hover:shadow-[var(--shadow-1)]",
+                managerId && "border-sky-500/30 bg-sky-500/10",
               )}
             >
               {managerId ? "manager set" : "pick manager"}
@@ -166,91 +176,105 @@ export default function DepartmentsFilterBar() {
         </div>
       </div>
 
-      {/* always-visible clear action (same as employees) */}
-      <div className="sticky bottom-0 flex justify-end border-t p-3">
+      {/* always-visible clear action */}
+      <div className="sticky bottom-0 flex justify-end border-t border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-3">
         <button
           type="button"
           onClick={clearAll}
           disabled={!hasAnyFilters}
           className={cx(
-            "h-9 rounded-md border px-3 text-sm",
-            !hasAnyFilters && "cursor-not-allowed opacity-50",
+            "ui-btn w-auto px-3.5 py-2",
+            "border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-slate-900",
+            "hover:shadow-[var(--shadow-1)]",
+            !hasAnyFilters && "cursor-not-allowed opacity-50 hover:shadow-none",
           )}
         >
           clear filters
         </button>
       </div>
 
-      {/* manager picker modal (same pattern as employees) */}
-      {managerOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16">
-          <div className="w-full max-w-lg rounded-lg border bg-white p-4 dark:bg-background">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-medium">pick manager</div>
-              <button
-                type="button"
-                onClick={() => setManagerOpen(false)}
-                className="rounded-md border px-2 py-1 text-xs"
-              >
-                close
-              </button>
-            </div>
-
-            <input
-              value={managerSearch}
-              onChange={(e) => setManagerSearch(e.target.value)}
-              className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none"
-              placeholder="type last name…"
-              autoFocus
+      {/* manager picker modal rendered via portal so it can't be clipped by the card */}
+      {managerOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-50" aria-modal="true" role="dialog">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/40"
+              aria-label="Close"
+              onClick={() => setManagerOpen(false)}
             />
 
-            <div className="mt-3 max-h-64 overflow-auto rounded-md border">
-              {managersQuery.isLoading ? (
-                <div className="p-3 text-sm text-muted-foreground">
-                  loading…
+            <div className="fixed left-1/2 top-16 w-[92vw] max-w-lg -translate-x-1/2">
+              <div className="ui-card ui-fade-in p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-slate-900">
+                    pick manager
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setManagerOpen(false)}
+                    className="ui-btn w-auto px-3.5 py-2"
+                  >
+                    close
+                  </button>
                 </div>
-              ) : managersQuery.isError ? (
-                <div className="p-3 text-sm text-destructive">failed to load</div>
-              ) : (managersQuery.data?.items.length ?? 0) > 0 ? (
-                <div className="divide-y">
-                  {(managersQuery.data?.items ?? []).map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setManager(m.id)}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-muted/40"
-                    >
-                      {m.lastName}, {m.firstName}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-3 text-sm text-muted-foreground">
-                  no matches
-                </div>
-              )}
-            </div>
 
-            <div className="mt-3 flex justify-between">
-              <button
-                type="button"
-                onClick={() => setManager(undefined)}
-                className="rounded-md border px-3 py-2 text-sm"
-              >
-                clear manager
-              </button>
+                <input
+                  value={managerSearch}
+                  onChange={(e) => setManagerSearch(e.target.value)}
+                  className="ui-input h-9"
+                  placeholder="type last name…"
+                  autoFocus
+                />
 
-              <button
-                type="button"
-                onClick={() => setManagerOpen(false)}
-                className="rounded-md border px-3 py-2 text-sm"
-              >
-                done
-              </button>
+                <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))]">
+                  {managersQuery.isLoading ? (
+                    <div className="p-3 text-sm text-slate-600">loading…</div>
+                  ) : managersQuery.isError ? (
+                    <div className="p-3 text-sm text-[rgb(var(--danger))]">
+                      failed to load
+                    </div>
+                  ) : (managersQuery.data?.items.length ?? 0) > 0 ? (
+                    <div className="divide-y divide-[rgb(var(--border))]">
+                      {(managersQuery.data?.items ?? []).map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setManager(m.id)}
+                          className="w-full px-3 py-2 text-left text-sm transition hover:bg-[rgb(var(--surface-2))]"
+                        >
+                          {m.lastName}, {m.firstName}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 text-sm text-slate-600">no matches</div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setManager(undefined)}
+                    className="ui-btn w-auto px-3.5 py-2"
+                  >
+                    clear manager
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setManagerOpen(false)}
+                    className="ui-btn ui-btn-primary w-auto px-3.5 py-2"
+                  >
+                    done
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
