@@ -13,5 +13,6 @@ export default async function ProtectedLayout({
     redirect("/login");
   }
 
-  return <AppShell>{children}</AppShell>;
+  const role = session.user?.role ?? null;
+  return <AppShell userRole={role}>{children}</AppShell>;
 }
