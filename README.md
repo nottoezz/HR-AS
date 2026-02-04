@@ -5,6 +5,10 @@ Employees departments and role based access control
 
 This README only covers setup seeding and running the app
 
+# IMPORTANT!
+make sure you set the .env vars before building
+or simply rename `.env.example` to `.env` for demo build
+
 ---
 
 ## Requirements
@@ -71,7 +75,6 @@ Created by the seed script
 ---
 
 ## Setup with Docker
-
 Build and run
 
 ```bash
