@@ -8,6 +8,24 @@ This README only covers setup seeding and running the app
 # IMPORTANT!
 make sure you set the .env vars before building
 or simply rename `.env.example` to `.env` for demo build
+---
+
+## Quick start (recommended)
+note: docker also included
+
+From the `repo root` directory:
+
+```bash
+chmod +x ./run-local.sh   # first time only
+./run-local.sh            # sets up deps, DB, and starts dev server
+```
+
+To run a production-like preview:
+
+```bash
+./run-local.sh --preview
+```
+
 
 ---
 
@@ -30,7 +48,7 @@ or simply rename `.env.example` to `.env` for demo build
 
 ---
 
-## Setup without Docker
+## Setup without Docker 
 
 Install deps
 
