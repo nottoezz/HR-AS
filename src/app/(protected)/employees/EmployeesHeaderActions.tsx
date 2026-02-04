@@ -55,8 +55,10 @@ export default function EmployeesHeaderActions() {
         onClick={onEdit}
         disabled={!canEdit}
         className={cx(
-          "hover:bg-muted/40 inline-flex h-9 items-center rounded-md border px-3 text-sm",
-          "disabled:cursor-not-allowed disabled:opacity-50",
+          "ui-btn w-auto px-3.5 py-2",
+          "border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]",
+          "hover:shadow-[var(--shadow-1)]",
+          "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none",
         )}
         title={
           !canEdit ? "select an employee to edit" : "edit selected employee"
@@ -68,7 +70,10 @@ export default function EmployeesHeaderActions() {
 
       <Link
         href="/employees/new"
-        className="hover:bg-muted/40 inline-flex h-9 items-center rounded-md border px-3 text-sm"
+        className={cx(
+          "ui-btn ui-btn-primary w-auto px-3.5 py-2",
+          "hover:shadow-[var(--shadow-2)]",
+        )}
       >
         Create employee
       </Link>

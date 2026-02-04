@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/trpc/react";
 import { withFilterCsv, withFilterParam } from "./EmployeeFilters";
@@ -180,39 +181,40 @@ export default function EmployeesFilterBar() {
     !!sp.get("managerId");
 
   return (
-    <div className="relative rounded-lg border bg-background">
-      <div className="p-4 pb-14">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+    <div className="ui-card ui-fade-in p-0">
+      {/* content */}
+      <div className="p-5 pb-16">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
           <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-3">
             {/* first name filter */}
             <label className="space-y-1">
-              <div className="text-xs text-muted-foreground">first name</div>
+              <div className="ui-label text-xs opacity-70">first name</div>
               <input
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none"
+                className="ui-input h-10"
                 placeholder="search..."
               />
             </label>
 
             {/* last name filter */}
             <label className="space-y-1">
-              <div className="text-xs text-muted-foreground">last name</div>
+              <div className="ui-label text-xs opacity-70">last name</div>
               <input
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none"
+                className="ui-input h-10"
                 placeholder="search..."
               />
             </label>
 
             {/* email filter */}
             <label className="space-y-1">
-              <div className="text-xs text-muted-foreground">email</div>
+              <div className="ui-label text-xs opacity-70">email</div>
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none"
+                className="ui-input h-10"
                 placeholder="search..."
               />
             </label>
@@ -226,8 +228,11 @@ export default function EmployeesFilterBar() {
                 setStatus(selectedStatus === "ACTIVE" ? undefined : "ACTIVE")
               }
               className={cx(
-                "h-9 rounded-md border px-3 text-sm",
-                selectedStatus === "ACTIVE" && "bg-emerald-500/10",
+                "ui-btn w-auto px-3 py-2",
+                "border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]",
+                "hover:shadow-[var(--shadow-1)]",
+                selectedStatus === "ACTIVE" &&
+                  "border-emerald-500/30 bg-emerald-500/10 text-emerald-800",
               )}
             >
               active
@@ -241,8 +246,11 @@ export default function EmployeesFilterBar() {
                 )
               }
               className={cx(
-                "h-9 rounded-md border px-3 text-sm",
-                selectedStatus === "INACTIVE" && "bg-amber-500/10",
+                "ui-btn w-auto px-3 py-2",
+                "border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]",
+                "hover:shadow-[var(--shadow-1)]",
+                selectedStatus === "INACTIVE" &&
+                  "border-amber-500/30 bg-amber-500/10 text-amber-900",
               )}
             >
               inactive
@@ -252,8 +260,10 @@ export default function EmployeesFilterBar() {
               type="button"
               onClick={() => setManagerOpen(true)}
               className={cx(
-                "h-9 rounded-md border px-3 text-sm",
-                managerId && "bg-sky-500/10",
+                "ui-btn w-auto px-3 py-2",
+                "border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]",
+                "hover:shadow-[var(--shadow-1)]",
+                managerId && "border-sky-500/30 bg-sky-500/10 text-sky-900",
               )}
             >
               {managerId ? "manager set" : "pick manager"}
@@ -262,15 +272,13 @@ export default function EmployeesFilterBar() {
         </div>
 
         {/* departments multi-select */}
-        <div className="mt-4">
-          <div className="mb-2 text-xs text-muted-foreground">departments</div>
+        <div className="mt-5">
+          <div className="ui-label mb-2 text-xs opacity-70">departments</div>
 
           {departmentsQuery.isLoading ? (
-            <div className="text-sm text-muted-foreground">loading…</div>
+            <div className="ui-muted text-slate-600">loading…</div>
           ) : departmentsQuery.isError ? (
-            <div className="text-sm text-destructive">
-              failed to load departments
-            </div>
+            <div className="ui-alert-error">failed to load departments</div>
           ) : (departmentsQuery.data?.items.length ?? 0) > 0 ? (
             <div className="flex flex-wrap gap-2">
               {(departmentsQuery.data?.items ?? []).map((d) => {
@@ -281,8 +289,11 @@ export default function EmployeesFilterBar() {
                     type="button"
                     onClick={() => toggleDept(d.id)}
                     className={cx(
-                      "h-8 rounded-md border px-2 text-xs",
-                      selected && "bg-red-500/10 border-red-500/30",
+                      "ui-btn w-auto px-2.5 py-1.5 text-xs font-semibold",
+                      "border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]",
+                      "hover:shadow-[var(--shadow-1)]",
+                      selected &&
+                        "border-[rgb(var(--danger-border))] bg-[rgb(var(--danger-bg))] text-[rgb(var(--danger))]",
                     )}
                   >
                     {d.name}
@@ -291,96 +302,99 @@ export default function EmployeesFilterBar() {
               })}
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground">no departments</div>
+            <div className="ui-muted text-slate-600">no departments</div>
           )}
         </div>
       </div>
 
       {/* always-visible clear action */}
-      <div className="sticky bottom-0 flex justify-end border-t p-3">
+      <div className="sticky bottom-0 flex justify-end border-t border-[rgb(var(--border))] bg-[rgba(255,255,255,0.85)] p-3 backdrop-blur">
         <button
           type="button"
           onClick={clearAll}
           disabled={!hasAnyFilters}
           className={cx(
-            "h-9 rounded-md border px-3 text-sm",
-            !hasAnyFilters && "cursor-not-allowed opacity-50",
+            "ui-btn w-auto px-3.5 py-2",
+            "border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]",
+            "hover:shadow-[var(--shadow-1)]",
+            !hasAnyFilters && "cursor-not-allowed opacity-50 hover:shadow-none",
           )}
         >
           clear filters
         </button>
       </div>
 
-      {/* manager picker modal */}
-      {managerOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16">
-          <div className="w-full max-w-lg rounded-lg border bg-white p-4 dark:bg-background">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-medium">pick manager</div>
-              <button
-                type="button"
-                onClick={() => setManagerOpen(false)}
-                className="rounded-md border px-2 py-1 text-xs"
-              >
-                close
-              </button>
+      {/* manager picker modal rendered via portal so it isn't clipped by the card */}
+      {managerOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16">
+            <div className="ui-card ui-fade-in w-full max-w-lg">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-sm font-semibold">pick manager</div>
+                <button
+                  type="button"
+                  onClick={() => setManagerOpen(false)}
+                  className="ui-btn w-auto px-3 py-2"
+                >
+                  close
+                </button>
+              </div>
+
+              <input
+                value={managerSearch}
+                onChange={(e) => setManagerSearch(e.target.value)}
+                className="ui-input h-10"
+                placeholder="type last name…"
+                autoFocus
+              />
+
+              <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-[var(--shadow-1)]">
+                {managersQuery.isLoading ? (
+                  <div className="p-3 text-sm text-slate-600">loading…</div>
+                ) : managersQuery.isError ? (
+                  <div className="p-3 text-sm text-[rgb(var(--danger))]">
+                    failed to load
+                  </div>
+                ) : (managersQuery.data?.items.length ?? 0) > 0 ? (
+                  <div className="divide-y divide-[rgb(var(--border))]">
+                    {(managersQuery.data?.items ?? []).map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setManager(m.id)}
+                        className="w-full px-3 py-2 text-left text-sm transition hover:bg-[rgb(var(--surface-2))]"
+                      >
+                        {m.lastName}, {m.firstName}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 text-sm text-slate-600">no matches</div>
+                )}
+              </div>
+
+              <div className="mt-4 flex justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setManager(undefined)}
+                  className="ui-btn w-auto px-3.5 py-2"
+                >
+                  clear manager
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setManagerOpen(false)}
+                  className="ui-btn ui-btn-primary w-auto px-3.5 py-2"
+                >
+                  done
+                </button>
+              </div>
             </div>
-
-            <input
-              value={managerSearch}
-              onChange={(e) => setManagerSearch(e.target.value)}
-              className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none"
-              placeholder="type last name…"
-              autoFocus
-            />
-
-            <div className="mt-3 max-h-64 overflow-auto rounded-md border">
-              {managersQuery.isLoading ? (
-                <div className="p-3 text-sm text-muted-foreground">
-                  loading…
-                </div>
-              ) : managersQuery.isError ? (
-                <div className="p-3 text-sm text-destructive">failed to load</div>
-              ) : (managersQuery.data?.items.length ?? 0) > 0 ? (
-                <div className="divide-y">
-                  {(managersQuery.data?.items ?? []).map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setManager(m.id)}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-muted/40"
-                    >
-                      {m.lastName}, {m.firstName}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-3 text-sm text-muted-foreground">
-                  no matches
-                </div>
-              )}
-            </div>
-
-            <div className="mt-3 flex justify-between">
-              <button
-                type="button"
-                onClick={() => setManager(undefined)}
-                className="rounded-md border px-3 py-2 text-sm"
-              >
-                clear manager
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setManagerOpen(false)}
-                className="rounded-md border px-3 py-2 text-sm"
-              >
-                done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

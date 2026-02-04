@@ -81,31 +81,6 @@ export default function DepartmentFormClient(props: Props) {
     return () => window.clearTimeout(t);
   }, [managerModalOpen]);
 
-  // prevent background scroll when modal open
-  React.useEffect(() => {
-    if (!managerModalOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [managerModalOpen]);
-
-  // close modal on escape
-  React.useEffect(() => {
-    if (!managerModalOpen) return;
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setManagerModalOpen(false);
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [managerModalOpen]);
-
   const createM = api.departments.create.useMutation({
     onSuccess() {
       void utils.departments.list.invalidate();
@@ -217,59 +192,52 @@ export default function DepartmentFormClient(props: Props) {
 
   if (isEdit && deptQ.isLoading) {
     return (
-      <div className="bg-background rounded-lg border p-6">
-        <p className="text-muted-foreground text-sm">Loading department…</p>
-      </div>
+      <section className="ui-card ui-fade-in">
+        <p className="ui-muted">loading department…</p>
+      </section>
     );
   }
 
   if (isEdit && deptQ.isError) {
     return (
-      <div className="bg-background rounded-lg border p-6">
-        <p className="text-destructive text-sm">unable to load department</p>
-      </div>
+      <section className="ui-card ui-fade-in">
+        <div className="ui-alert-error">unable to load department</div>
+      </section>
     );
   }
 
   return (
     <>
-      <form onSubmit={onSubmit} className="bg-background rounded-lg border">
-        <div className="space-y-4 p-6">
-          {formError && (
-            <div className="border-destructive/40 bg-destructive/10 rounded-md border px-3 py-2">
-              <p className="text-destructive text-sm">{formError}</p>
-            </div>
-          )}
+      <form onSubmit={onSubmit} className="ui-card ui-fade-in">
+        <div className="space-y-4">
+          {/* error */}
+          {formError && <div className="ui-alert-error">{formError}</div>}
 
+          {/* name */}
           <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="deptName">
+            <label className="ui-label" htmlFor="deptName">
               name
             </label>
             <input
               id="deptName"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className={cx(
-                "bg-background w-full rounded-md border px-3 py-2 text-sm outline-none",
-                "focus-visible:ring-ring focus-visible:ring-2",
-              )}
+              className="ui-input"
               placeholder="e.g. engineering"
               disabled={saving}
             />
           </div>
 
+          {/* status */}
           <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="deptStatus">
+            <label className="ui-label" htmlFor="deptStatus">
               status
             </label>
             <select
               id="deptStatus"
               value={status}
               onChange={(e) => setStatus(asStatus(e.target.value))}
-              className={cx(
-                "bg-background w-full rounded-md border px-3 py-2 text-sm outline-none",
-                "focus-visible:ring-ring focus-visible:ring-2",
-              )}
+              className="ui-input"
               disabled={saving}
             >
               <option value="ACTIVE">active</option>
@@ -277,100 +245,74 @@ export default function DepartmentFormClient(props: Props) {
             </select>
           </div>
 
-          {/* manager selection */}
+          {/* manager */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">manager</label>
+            <label className="ui-label">manager</label>
 
             <div
               className={cx(
-                "flex items-center justify-between gap-3 rounded-md border px-3 py-2",
-                "hover:bg-muted/20 cursor-pointer",
+                "flex items-center justify-between gap-3 rounded-xl border px-3 py-2",
+                "border-[rgb(var(--border))] bg-[rgb(var(--surface))]",
+                "transition hover:bg-[rgb(var(--surface-2))]",
               )}
-              onClick={() => {
-                if (managersQ.isError || managersQ.isLoading) return;
-                openManagerModal();
-              }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  if (managersQ.isError || managersQ.isLoading) return;
-                  openManagerModal();
-                }
-              }}
-              aria-label="Select manager"
             >
               <div className="min-w-0">
-                <div className="text-sm">{selectedManagerLabel}</div>
-                <div className="text-muted-foreground text-xs">
-                  {managerId ? "Selected" : "None"}
+                <div className="truncate text-sm font-medium">
+                  {selectedManagerLabel}
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    pickManager(null);
-                  }}
-                  className={cx(
-                    "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-                    "disabled:cursor-not-allowed disabled:opacity-50",
-                  )}
+                  onClick={() => pickManager(null)}
+                  className="ui-btn w-auto px-3.5 py-2"
                   disabled={managersQ.isLoading || managersQ.isError || saving}
-                  title="Clear manager"
+                  title="clear manager"
                 >
-                  Clear
+                  clear
                 </button>
 
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  onClick={() => {
+                    if (managersQ.isError || managersQ.isLoading) return;
                     openManagerModal();
                   }}
-                  className={cx(
-                    "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-                    "disabled:cursor-not-allowed disabled:opacity-50",
-                  )}
+                  className="ui-btn w-auto px-3.5 py-2"
                   disabled={managersQ.isLoading || managersQ.isError || saving}
                 >
-                  Change
+                  change
                 </button>
               </div>
             </div>
 
             {managersQ.isError && (
-              <p className="text-destructive text-xs">
-                Unable to load employees for manager selection.
+              <p className="text-[rgb(var(--danger))] text-xs">
+                unable to load employees for manager selection
               </p>
             )}
           </div>
-        </div>
 
-        <div className="flex items-center justify-between border-t px-6 py-4">
-          <button
-            type="button"
-            onClick={() => router.push("/departments")}
-            className="hover:bg-muted/40 h-9 rounded-md border px-3 text-sm"
-            disabled={saving}
-          >
-            Cancel
-          </button>
+          {/* actions */}
+          <div className="flex items-center justify-between pt-2">
+            <button
+              type="button"
+              onClick={() => router.push("/departments")}
+              className="ui-btn w-auto px-4 py-2.5"
+              disabled={saving}
+            >
+              cancel
+            </button>
 
-          <button
-            type="submit"
-            className={cx(
-              "h-9 rounded-md border px-3 text-sm",
-              "bg-foreground text-background hover:opacity-90",
-              saving && "opacity-70",
-            )}
-            disabled={saving}
-          >
-            {isEdit ? "Save changes" : "Create department"}
-          </button>
+            <button
+              type="submit"
+              className="ui-btn ui-btn-primary w-auto px-4 py-2.5"
+              disabled={saving}
+            >
+              {isEdit ? "save changes" : "create department"}
+            </button>
+          </div>
         </div>
       </form>
 
@@ -380,43 +322,30 @@ export default function DepartmentFormClient(props: Props) {
           className="fixed inset-0 z-50"
           aria-modal="true"
           role="dialog"
-          aria-label="Select manager"
+          aria-label="select manager"
         >
-          {/* backdrop */}
           <button
             type="button"
             className="absolute inset-0 bg-black/40"
-            aria-label="Close"
+            aria-label="close"
             onClick={() => setManagerModalOpen(false)}
           />
 
-          {/* modal panel */}
-          <div
-            className={cx(
-              "fixed top-20 left-1/2 -translate-x-1/2",
-              "w-[92vw] max-w-md",
-              "bg-white text-black",
-              "rounded-lg border shadow-xl",
-            )}
-          >
-            <div className="space-y-3 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium">Select manager</div>
-                  <div className="text-xs text-gray-500">
-                    type a name or email, press enter to select
-                  </div>
-                </div>
-
+          <div className="fixed left-1/2 top-16 w-[92vw] max-w-lg -translate-x-1/2">
+            <div className="ui-card ui-fade-in p-4">
+              {/* header */}
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold">pick manager</div>
                 <button
                   type="button"
                   onClick={() => setManagerModalOpen(false)}
-                  className="h-8 rounded-md border px-3 text-xs hover:bg-gray-100"
+                  className="ui-btn w-auto px-3.5 py-2"
                 >
-                  Close
+                  close
                 </button>
               </div>
 
+              {/* search */}
               <input
                 ref={managerInputRef}
                 value={managerQuery}
@@ -427,60 +356,72 @@ export default function DepartmentFormClient(props: Props) {
                     submitManagerFromEnter();
                   }
                 }}
-                placeholder="Start typing…"
-                className="h-10 w-full rounded-md border px-3 text-sm"
+                placeholder="type name or email…"
+                className="ui-input h-10"
                 disabled={managersQ.isLoading}
               />
 
-              <div className="text-xs text-gray-500">
-                {managersQ.isLoading
-                  ? "Loading employees…"
-                  : managersQ.isError
-                    ? "Cannot load employees."
-                    : managerQuery.trim()
-                      ? `Top matches: ${managerMatches.length}`
-                      : "Tip: type an email for exact match."}
+              {/* list */}
+              <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))]">
+                {managersQ.isLoading ? (
+                  <div className="p-3 text-sm text-slate-600">loading…</div>
+                ) : managersQ.isError ? (
+                  <div className="p-3 text-sm text-[rgb(var(--danger))]">
+                    failed to load
+                  </div>
+                ) : (managerQuery.trim() ? managerMatches : allManagers).length >
+                  0 ? (
+                  <div className="divide-y divide-[rgb(var(--border))]">
+                    {(managerQuery.trim() ? managerMatches : allManagers)
+                      .slice(0, 20)
+                      .map((m) => {
+                        const label =
+                          `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() ||
+                          m.email ||
+                          "employee";
+
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => pickManager(m.id)}
+                            className={cx(
+                              "w-full px-3 py-2 text-left text-sm transition",
+                              "hover:bg-[rgb(var(--surface-2))]",
+                              managerId === m.id && "bg-[rgb(var(--surface-2))]",
+                            )}
+                          >
+                            <div className="truncate font-medium">{label}</div>
+                            {m.email ? (
+                              <div className="truncate text-xs text-slate-600">
+                                {m.email}
+                              </div>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <div className="p-3 text-sm text-slate-600">no matches</div>
+                )}
               </div>
 
-              <div className="max-h-48 space-y-1 overflow-y-auto pt-1">
-                {!managersQ.isLoading &&
-                  !managersQ.isError &&
-                  managerQuery.trim() && (
-                    <>
-                      {managerMatches.length === 0 ? (
-                        <div className="rounded-md border px-3 py-2 text-sm text-gray-500">
-                          No matches
-                        </div>
-                      ) : (
-                        managerMatches.map((m) => {
-                          const label =
-                            `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() ||
-                            m.email ||
-                            "Employee";
-
-                          return (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() => pickManager(m.id)}
-                              className={cx(
-                                "w-full rounded-md border px-3 py-2 text-left text-sm",
-                                "hover:bg-gray-100",
-                                managerId === m.id && "bg-gray-50",
-                              )}
-                            >
-                              <div className="truncate">{label}</div>
-                              {m.email && (
-                                <div className="truncate text-xs text-gray-500">
-                                  {m.email}
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })
-                      )}
-                    </>
-                  )}
+              {/* footer */}
+              <div className="mt-3 flex justify-between">
+                <button
+                  type="button"
+                  onClick={() => pickManager(null)}
+                  className="ui-btn w-auto px-3.5 py-2"
+                >
+                  clear manager
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setManagerModalOpen(false)}
+                  className="ui-btn ui-btn-primary w-auto px-3.5 py-2"
+                >
+                  done
+                </button>
               </div>
             </div>
           </div>

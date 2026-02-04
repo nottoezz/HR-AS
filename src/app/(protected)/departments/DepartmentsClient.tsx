@@ -29,8 +29,8 @@ function clampInt(n: number, min: number, max: number) {
 // status pill styling
 function statusPillClass(s: Status) {
   return s === "ACTIVE"
-    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-    : "border-muted bg-muted/40 text-muted-foreground";
+    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800"
+    : "border-[rgb(var(--border))] bg-[rgb(var(--surface-2))] text-slate-600";
 }
 
 // normalize api strings into our union
@@ -156,7 +156,7 @@ export default function DepartmentsClient() {
         aria-hidden="true"
         className={cx(
           "ml-1 inline-block text-[10px] leading-none",
-          active ? "text-foreground" : "text-muted-foreground/70",
+          active ? "text-slate-900" : "text-slate-400",
         )}
       >
         {active ? (dir === "asc" ? "▲" : "▼") : "↕"}
@@ -175,8 +175,9 @@ export default function DepartmentsClient() {
           role="columnheader"
           onClick={() => toggleSort(field)}
           className={cx(
-            "inline-flex items-center rounded-sm outline-none",
-            "hover:text-foreground focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2",
+            "inline-flex items-center rounded-sm transition outline-none",
+            "hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-offset-2",
+            "focus-visible:ring-[rgb(var(--ring))] focus-visible:ring-offset-[rgb(var(--background))]",
           )}
           aria-sort={
             active
@@ -248,7 +249,8 @@ export default function DepartmentsClient() {
     },
     onError(_err, vars, ctx) {
       // revert optimistic change
-      if (ctx?.previous) utils.departments.list.setData(listInput, ctx.previous);
+      if (ctx?.previous)
+        utils.departments.list.setData(listInput, ctx.previous);
 
       // show error under the row
       setRowError((prev) => ({ ...prev, [vars.id]: true }));
@@ -303,14 +305,12 @@ export default function DepartmentsClient() {
   // initial skeleton
   if (isInitialLoading) {
     return (
-      <section className="bg-background rounded-lg border">
-        <div className="border-b px-6 py-4">
-          <div className="bg-muted h-4 w-40 animate-pulse rounded" />
-          <div className="bg-muted mt-2 h-3 w-72 animate-pulse rounded" />
+      <section className="ui-card ui-fade-in p-0">
+        <div className="border-b border-[rgb(var(--border))] px-6 py-4">
+          <div className="h-4 w-40 animate-pulse rounded bg-[rgb(var(--surface-2))]" />
+          <div className="mt-2 h-3 w-72 animate-pulse rounded bg-[rgb(var(--surface-2))]" />
         </div>
-        <div className="text-muted-foreground p-6 text-sm">
-          Loading departments…
-        </div>
+        <div className="p-6 text-sm text-slate-600">Loading departments…</div>
       </section>
     );
   }
@@ -318,219 +318,227 @@ export default function DepartmentsClient() {
   return (
     <>
       <DepartmentsFilterBar />
-      <section className="bg-background overflow-hidden rounded-lg border">
-      {/* we keep old data on screen but tell the user the refresh failed */}
-      {q.isError && (
-        <div className="border-destructive/40 bg-destructive/10 border-b px-6 py-3">
-          <p className="text-destructive text-xs">
-            Unable to refresh departments; showing the last loaded results.
-          </p>
-        </div>
-      )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40 border-b text-left">
-            <tr className="[&>th]:px-6 [&>th]:py-3 [&>th]:font-medium">
-              <th>
-                <ThButton label="Name" field="name" />
-              </th>
-              <th>
-                <ThButton label="Manager" field="manager" />
-              </th>
-              <th className="text-right">
-                <ThButton label="Status" field="status" />
-              </th>
-            </tr>
-          </thead>
+      <section className="ui-card ui-fade-in overflow-hidden p-0">
+        {/* we keep old data on screen but tell the user the refresh failed */}
+        {q.isError && (
+          <div className="border-b border-[rgb(var(--danger-border))] bg-[rgb(var(--danger-bg))] px-6 py-3">
+            <p className="text-xs text-[rgb(var(--danger))]">
+              Unable to refresh departments; showing the last loaded results.
+            </p>
+          </div>
+        )}
 
-          <tbody className="divide-y">
-            {/* empty state */}
-            {items.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={3}
-                  className="text-muted-foreground px-6 py-6 text-sm"
-                >
-                  No departments found.
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-[rgb(var(--border))] bg-[rgb(var(--surface-2))] text-left">
+              <tr className="[&>th]:px-6 [&>th]:py-3 [&>th]:font-medium">
+                <th>
+                  <ThButton label="Name" field="name" />
+                </th>
+                <th>
+                  <ThButton label="Manager" field="manager" />
+                </th>
+                <th className="text-right">
+                  <ThButton label="Status" field="status" />
+                </th>
               </tr>
-            ) : (
-              items.map((d) => {
-                // manager label for the table
-                const managerName = d.manager
-                  ? `${d.manager.firstName} ${d.manager.lastName}`
-                  : "—";
+            </thead>
 
-                // status might be a string from prisma so normalize it
-                const effectiveStatus = asStatus(d.status);
+            <tbody className="divide-y divide-[rgb(var(--border))]">
+              {/* empty state */}
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-6 py-6 text-sm text-slate-600">
+                    No departments found.
+                  </td>
+                </tr>
+              ) : (
+                items.map((d) => {
+                  // manager label for the table
+                  const managerName = d.manager
+                    ? `${d.manager.firstName} ${d.manager.lastName}`
+                    : "—";
 
-                // local state flags
-                const statusBusy = savingIds.has(d.id);
-                const showRowError = Boolean(rowError[d.id]);
+                  // status might be a string from prisma so normalize it
+                  const effectiveStatus = asStatus(d.status);
 
-                // selection is hradmin only
-                const canSelectRow = Boolean(isHRAdmin);
-                const isSelected = canSelectRow && selectedId === d.id;
+                  // local state flags
+                  const statusBusy = savingIds.has(d.id);
+                  const showRowError = Boolean(rowError[d.id]);
 
-                // toggling is hradmin only and disabled while busy
-                const canToggleStatus = Boolean(isHRAdmin) && !statusBusy;
+                  // selection is hradmin only
+                  const canSelectRow = Boolean(isHRAdmin);
+                  const isSelected = canSelectRow && selectedId === d.id;
 
-                return (
-                  <tr
-                    key={d.id}
-                    onClick={() => toggleSelectedRow(d.id)}
-                    onKeyDown={(ev) => {
-                      // keyboard support for selection
-                      if (ev.key === "Enter" || ev.key === " ") {
-                        ev.preventDefault();
-                        toggleSelectedRow(d.id);
-                      }
-                    }}
-                    tabIndex={canSelectRow ? 0 : -1}
-                    aria-selected={isSelected}
-                    className={cx(
-                      "transition-colors [&>td]:px-6 [&>td]:py-3",
-                      canSelectRow ? "hover:bg-muted/30 cursor-pointer" : "",
-                      isSelected && "bg-red-500/10",
-                      canSelectRow &&
-                        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-                    )}
-                  >
-                    <td className="font-medium">{d.name}</td>
-                    <td className="text-muted-foreground">{managerName}</td>
+                  // toggling is hradmin only and disabled while busy
+                  const canToggleStatus = Boolean(isHRAdmin) && !statusBusy;
 
-                    <td className="text-right">
-                      <div className="inline-flex flex-col items-end">
-                        <button
-                          type="button"
-                          onClick={(ev) => {
-                            // keep row click from firing when toggling status
-                            ev.stopPropagation();
-                            if (!canToggleStatus) return;
-                            onToggleStatus(d.id, effectiveStatus);
-                          }}
-                          className={cx(
-                            "inline-flex items-center justify-between",
-                            "min-w-[7.5rem] gap-2",
-                            "rounded-md border px-2 py-0.5 text-xs font-medium",
-                            statusPillClass(effectiveStatus),
-                            isHRAdmin &&
-                              "hover:bg-muted/40 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-                            !isHRAdmin && "cursor-default",
-                            statusBusy && "cursor-not-allowed opacity-70",
-                          )}
-                          aria-label={`Status for ${d.name}`}
-                          title={
-                            statusBusy
-                              ? "Updating…"
-                              : isHRAdmin
-                                ? "Click to toggle status"
-                                : "Status"
-                          }
-                          disabled={!isHRAdmin || statusBusy}
-                        >
-                          <span className="tabular-nums">{effectiveStatus}</span>
-                          {/* tiny busy dot so the user sees something happening */}
-                          <span
-                            aria-hidden="true"
+                  return (
+                    <tr
+                      key={d.id}
+                      onClick={() => toggleSelectedRow(d.id)}
+                      onKeyDown={(ev) => {
+                        // keyboard support for selection
+                        if (ev.key === "Enter" || ev.key === " ") {
+                          ev.preventDefault();
+                          toggleSelectedRow(d.id);
+                        }
+                      }}
+                      tabIndex={canSelectRow ? 0 : -1}
+                      aria-selected={isSelected}
+                      className={cx(
+                        "transition-colors [&>td]:px-6 [&>td]:py-3",
+                        canSelectRow
+                          ? "cursor-pointer hover:bg-[rgb(var(--surface-2))]"
+                          : "",
+                        isSelected && "bg-[rgba(99,102,241,0.10)]",
+                        canSelectRow &&
+                          "focus-visible:ring-2 focus-visible:ring-[rgb(var(--ring))] focus-visible:outline-none",
+                      )}
+                    >
+                      <td className="font-semibold text-slate-900">{d.name}</td>
+                      <td className="text-slate-600">{managerName}</td>
+
+                      <td className="text-right">
+                        <div className="inline-flex flex-col items-end">
+                          <button
+                            type="button"
+                            onClick={(ev) => {
+                              // keep row click from firing when toggling status
+                              ev.stopPropagation();
+                              if (!canToggleStatus) return;
+                              onToggleStatus(d.id, effectiveStatus);
+                            }}
                             className={cx(
-                              "h-2 w-2 rounded-full",
-                              statusBusy
-                                ? "bg-muted animate-pulse"
-                                : "bg-transparent",
+                              "inline-flex items-center justify-between",
+                              "min-w-[7.5rem] gap-2",
+                              "rounded-md border px-2 py-0.5 text-xs font-semibold",
+                              "transition focus-visible:ring-2 focus-visible:ring-[rgb(var(--ring))] focus-visible:outline-none",
+                              statusPillClass(effectiveStatus),
+                              !isHRAdmin && "cursor-default",
+                              statusBusy && "cursor-not-allowed opacity-70",
                             )}
-                          />
-                        </button>
+                            aria-label={`Status for ${d.name}`}
+                            title={
+                              statusBusy
+                                ? "Updating…"
+                                : isHRAdmin
+                                  ? "Click to toggle status"
+                                  : "Status"
+                            }
+                            disabled={!isHRAdmin || statusBusy}
+                          >
+                            <span className="tabular-nums">
+                              {effectiveStatus}
+                            </span>
+                            {/* tiny busy dot so the user sees something happening */}
+                            <span
+                              aria-hidden="true"
+                              className={cx(
+                                "h-2 w-2 rounded-full",
+                                statusBusy
+                                  ? "animate-pulse bg-slate-300"
+                                  : "bg-transparent",
+                              )}
+                            />
+                          </button>
 
-                        {/* row level failure message so we do not break the whole table */}
-                        {showRowError && (
-                          <div className="text-destructive mt-1 text-[11px]">
-                            failed to update status
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                          {/* row level failure message so we do not break the whole table */}
+                          {showRowError && (
+                            <div className="mt-1 text-[11px] text-[rgb(var(--danger))]">
+                              failed to update status
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* pagination bar */}
+        <div className="relative flex items-center border-t border-[rgb(var(--border))] px-6 py-3 text-sm">
+          {/* left side page indicator with editable input */}
+          <div className="flex items-center gap-1 text-xs text-slate-600">
+            <span>Page</span>
+            <input
+              inputMode="numeric"
+              value={pageInput}
+              onChange={(e) => setPageInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitPageInput();
+              }}
+              onBlur={commitPageInput}
+              className={cx(
+                "text-slate-900 tabular-nums",
+                "w-[2.5ch] bg-transparent text-center outline-none",
+                "focus-visible:border-b focus-visible:border-slate-400",
+              )}
+              aria-label="Current page"
+            />
+            <span>/ {totalPages}</span>
+          </div>
+
+          {/* centered prev next controls */}
+          <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className={cx(
+                "ui-btn w-auto px-3.5 py-2",
+                "border border-[rgb(var(--border))] bg-[rgb(var(--surface))]",
+                "hover:shadow-[var(--shadow-1)]",
+                "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none",
+              )}
+            >
+              Prev
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className={cx(
+                "ui-btn w-auto px-3.5 py-2",
+                "border border-[rgb(var(--border))] bg-[rgb(var(--surface))]",
+                "hover:shadow-[var(--shadow-1)]",
+                "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none",
+              )}
+            >
+              Next
+            </button>
+          </div>
+
+          {/* right side page size input */}
+          <div className="ml-auto flex items-center gap-2">
+            <label className="text-xs text-slate-600" htmlFor="pageSize">
+              Per page
+            </label>
+            <input
+              id="pageSize"
+              inputMode="numeric"
+              value={pageSizeInput}
+              onChange={(e) => setPageSizeInput(e.target.value)}
+              onBlur={() => {
+                // normalize on blur so the ui matches what we actually request
+                const normalized = clampInt(
+                  Number(pageSizeInput || 10),
+                  1,
+                  200,
                 );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* pagination bar */}
-      <div className="relative flex items-center border-t px-6 py-3 text-sm">
-        {/* left side page indicator with editable input */}
-        <div className="text-muted-foreground flex items-center gap-1 text-xs">
-          <span>Page</span>
-          <input
-            inputMode="numeric"
-            value={pageInput}
-            onChange={(e) => setPageInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitPageInput();
-            }}
-            onBlur={commitPageInput}
-            className={cx(
-              "text-foreground bg-transparent tabular-nums",
-              "w-[2.5ch] text-center",
-              "outline-none",
-              "focus-visible:border-foreground/40 focus-visible:border-b",
-            )}
-            aria-label="Current page"
-          />
-          <span>/ {totalPages}</span>
+                setPageSizeInput(String(normalized));
+              }}
+              className="ui-input h-9 w-12 px-2 py-1.5 text-center"
+              aria-label="Departments per page"
+            />
+          </div>
         </div>
-
-        {/* centered prev next controls */}
-        <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            className={cx(
-              "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-            )}
-          >
-            Prev
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-            className={cx(
-              "hover:bg-muted/40 h-9 rounded-md border px-3 text-sm",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-            )}
-          >
-            Next
-          </button>
-        </div>
-
-        {/* right side page size input */}
-        <div className="ml-auto flex items-center gap-2">
-          <label className="text-muted-foreground text-xs" htmlFor="pageSize">
-            Per page
-          </label>
-          <input
-            id="pageSize"
-            inputMode="numeric"
-            value={pageSizeInput}
-            onChange={(e) => setPageSizeInput(e.target.value)}
-            onBlur={() => {
-              // normalize on blur so the ui matches what we actually request
-              const normalized = clampInt(Number(pageSizeInput || 10), 1, 200);
-              setPageSizeInput(String(normalized));
-            }}
-            className="bg-background focus-visible:ring-ring h-9 w-11 rounded-md border px-2 text-sm outline-none focus-visible:ring-2"
-            aria-label="Departments per page"
-          />
-        </div>
-      </div>
-    </section>
+      </section>
     </>
   );
 }

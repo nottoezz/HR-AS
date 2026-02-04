@@ -1,6 +1,228 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  --background: 248 250 252;
+  --surface: 255 255 255;
+  --surface-2: 241 245 249;
+  --border: 226 232 240;
+
+  --text: 15 23 42;
+  --muted: 100 116 139;
+  --primary: 79 70 229;
+  --primary-foreground: 255 255 255;
+  --ring: 99 102 241;
+  --input: 255 255 255;
+  --input-hover: 248 250 252;
+
+  --danger: 220 38 38;
+  --danger-bg: 254 242 242;
+  --danger-border: 254 202 202;
+
+  --shadow-1: 0 1px 2px rgba(2, 6, 23, 0.06);
+  --shadow-2: 0 10px 30px rgba(2, 6, 23, 0.1);
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+  }
+
+  body {
+    background: rgb(var(--background));
+    color: rgb(var(--text));
+  }
+
+  :where(button, a, input) {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  .ui-page {
+    @apply min-h-screen px-4 py-10;
+    background:
+      radial-gradient(
+        900px 500px at 20% 10%,
+        rgba(99, 102, 241, 0.1),
+        transparent 60%
+      ),
+      radial-gradient(
+        800px 500px at 90% 20%,
+        rgba(14, 165, 233, 0.08),
+        transparent 55%
+      ),
+      rgb(var(--background));
+  }
+
+  .ui-shell {
+    @apply mx-auto w-full max-w-sm;
+  }
+
+  .ui-card {
+    @apply rounded-2xl border p-6;
+    background: rgb(var(--surface));
+    border-color: rgb(var(--border));
+    box-shadow: var(--shadow-2);
+  }
+
+  .ui-card-header {
+    @apply mb-6 text-center;
+  }
+
+  .ui-title {
+    @apply text-3xl font-extrabold tracking-tight;
+  }
+
+  .ui-muted {
+    @apply text-sm;
+    color: rgb(var(--muted));
+  }
+
+  .ui-label {
+    @apply text-sm font-medium;
+    color: rgb(var(--text));
+  }
+
+  .ui-input {
+    @apply w-full rounded-xl border px-3 py-2.5 text-sm transition outline-none placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60;
+    background: rgb(var(--input));
+    border-color: rgb(var(--border));
+    color: rgb(var(--text));
+    box-shadow: var(--shadow-1);
+  }
+
+  .ui-input:hover {
+    background: rgb(var(--input-hover));
+  }
+
+  .ui-input:focus-visible {
+    border-color: rgb(var(--ring));
+    --tw-ring-color: rgb(var(--ring));
+    --tw-ring-offset-color: rgb(var(--background));
+  }
+
+  .ui-btn {
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60;
+    box-shadow: var(--shadow-1);
+  }
+
+  .ui-btn:active {
+    transform: translateY(1px) scale(0.99);
+  }
+
+  .ui-btn-primary {
+    background: rgb(var(--primary));
+    color: rgb(var(--primary-foreground));
+  }
+
+  .ui-btn-primary:hover {
+    filter: brightness(0.96);
+    box-shadow: var(--shadow-2);
+    transform: translateY(-1px);
+  }
+
+  .ui-btn-primary:focus-visible {
+    --tw-ring-color: rgb(var(--ring));
+    --tw-ring-offset-color: rgb(var(--background));
+  }
+
+  .ui-alert-error {
+    @apply rounded-xl border px-3 py-2 text-sm;
+    background: rgb(var(--danger-bg));
+    border-color: rgb(var(--danger-border));
+    color: rgb(var(--danger));
+  }
+
+  .ui-divider {
+    @apply my-5 h-px w-full;
+    background: rgb(var(--border));
+  }
+
+  .ui-fade-in {
+    animation: uiFadeIn 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  @keyframes uiFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .ui-layout-page {
+    @apply relative min-h-screen overflow-hidden;
+    background:
+      radial-gradient(
+        900px 500px at 20% 10%,
+        rgba(99, 102, 241, 0.1),
+        transparent 60%
+      ),
+      radial-gradient(
+        800px 500px at 90% 20%,
+        rgba(14, 165, 233, 0.08),
+        transparent 55%
+      ),
+      rgb(var(--background));
+  }
+
+  .ui-sidebar {
+    @apply fixed top-0 left-0 z-30 hidden h-screen w-72 border-r md:flex md:flex-col;
+    background: rgb(var(--surface));
+    border-color: rgb(var(--border));
+    box-shadow: var(--shadow-1);
+  }
+
+  .ui-sidebar-brand {
+    @apply text-2xl font-semibold tracking-tight;
+    color: rgb(var(--text));
+  }
+
+  .ui-topbar {
+    @apply fixed top-0 z-20 h-16 w-full border-b;
+    background: rgb(var(--surface));
+    border-color: rgb(var(--border));
+    box-shadow: var(--shadow-1);
+  }
+
+  .ui-topbar-title {
+    @apply text-2xl font-semibold tracking-tight;
+    color: rgb(var(--text));
+  }
+
+  .ui-nav-link {
+    @apply block rounded-xl px-3 py-2.5 text-sm font-medium transition;
+    color: rgb(var(--text));
+  }
+
+  .ui-nav-link:hover {
+    background: rgb(var(--surface-2));
+  }
+
+  .ui-nav-link-active {
+    background: rgb(var(--surface-2));
+    color: rgb(var(--primary));
+  }
+
+  .ui-nav-link-active:hover {
+    background: rgb(var(--surface-2));
+  }
+
+  .ui-logo-box {
+    @apply mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl border bg-white;
+    border-color: rgb(var(--border));
+    box-shadow: var(--shadow-1);
+  }
+
+  .ui-logo-icon {
+    @apply h-6 w-6 rounded-lg;
+    background: rgb(var(--primary));
+  }
 }
