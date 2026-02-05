@@ -17,13 +17,13 @@ From the `repo root` directory:
 
 ```bash
 chmod +x ./run-local.sh   # first time only
-./run-local.sh            # sets up deps, DB, and starts dev server
+./run.sh            # sets up deps, DB, and starts dev server
 ```
 
 To run a production-like preview:
 
 ```bash
-./run-local.sh --preview
+./run.sh --preview
 ```
 
 
