@@ -16,7 +16,7 @@ note: docker also included
 From the `repo root` directory:
 
 ```bash
-chmod +x ./run-local.sh   # first time only
+chmod +x ./run.sh   # first time only
 ./run.sh            # sets up deps, DB, and starts dev server
 ```
 
