@@ -68,7 +68,7 @@ Run database and seed
 
 ```bash
 npx prisma migrate dev
-npx prisma db seed
+npx prisma db:seed
 ```
 
 Start dev server
